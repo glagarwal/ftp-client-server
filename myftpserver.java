@@ -5,6 +5,8 @@ import java.util.*;
 class myftpserver{
 	public static final String root_dir = System.getProperty("user.dir").concat("/myftpserver");
 	public static String current_dir = root_dir;
+	public static final String USER_CONTEXT = "/myftpserver";
+
 	public static final String PWD_COMMAND = "pwd";
 
 	public static final String MKDIR_COMMAND = "mkdir";
@@ -34,7 +36,8 @@ class myftpserver{
 
 	public static void printWorkingDirectory(DataOutputStream dos){
 		try{
-				dos.writeUTF(current_dir);
+				String pwdString = current_dir.substring(current_dir.indexOf(USER_CONTEXT));
+				dos.writeUTF(pwdString);
 		}catch(IOException ioe){
 			ioe.printStackTrace();
 		}
@@ -53,13 +56,23 @@ class myftpserver{
 	public static void changeDirectory(DataOutputStream dos, String dir){
 		try{
 			if(!dir.equalsIgnoreCase(CD_BACK_COMMAND)){
-				if (new File(current_dir+"/"+dir).isDirectory()){
+				if(dir.startsWith("/")){
+					if(new File(dir).isDirectory()){
+						current_dir = dir;
+						dos.writeUTF(CD_SUCCESS_MESSAGE+current_dir);
+					}else{
+						System.out.println("it failed");
+						dos.writeUTF(CD_FAILURE_MESSAGE);
+					}
+				}else{
+					if (new File(current_dir+"/"+dir).isDirectory()){
 					current_dir = current_dir+"/"+dir;
 					System.out.println("directory changed: "+current_dir);
 					dos.writeUTF(CD_SUCCESS_MESSAGE+current_dir);
 				}else{
 					System.out.println("it failed");
 					dos.writeUTF(CD_FAILURE_MESSAGE);
+					}
 				}
 			}else{
 				System.out.println("you want to change to: "+current_dir.substring(0,current_dir.lastIndexOf('/')));
@@ -141,6 +154,13 @@ class myftpserver{
 			DataInputStream dis=new DataInputStream(s.getInputStream());
 			//dos.writeUTF("----Welcome to Server at port 3000 -- "+server+"----");
 			String rec = "S";
+
+
+			//This creates a directory called myftpserver for user. User will always be under this directory
+			if(!(new File(System.getProperty("user.dir").concat("/myftpserver")).isDirectory())){
+				File userContext = new File(System.getProperty("user.dir").concat("/myftpserver"));
+				userContext.mkdirs();
+			}
 			while(message!="exit"){	//message!="exit" && rec!="exit"
 				rec = dis.readUTF();
 				System.out.println("Command called: " +rec);
