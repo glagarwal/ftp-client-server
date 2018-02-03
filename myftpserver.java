@@ -112,7 +112,6 @@ class myftpserver{
 				BufferedInputStream bis = new BufferedInputStream(fs);
 				bis.read(buffer, 0, buffer.length);
 				dos.write(buffer, 0, buffer.length);
-				
 			}
 
 		}catch(Exception e){
