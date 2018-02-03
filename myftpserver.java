@@ -25,6 +25,13 @@ class myftpserver{
 
 	public static final String GET_COMMAND = "get";
 
+	public static final String QUIT_COMMAND = "quit";
+	public static final String QUIT_MESSAGE = "FTP Connection closed";
+
+	public static final String INVALID_CMD_MESSAGE = "Invalid command.";
+
+	public static final String WAITING_MSG = "Waiting for Connection...";
+
 	public static void printWorkingDirectory(DataOutputStream dos){
 		try{
 				dos.writeUTF(current_dir);
@@ -123,6 +130,7 @@ class myftpserver{
 		try{
 			ServerSocket server=new ServerSocket(3000);
 			System.out.println("Server started");
+			System.out.println(WAITING_MSG);
 			Socket s=server.accept();
 
 			Scanner sc = new Scanner(System.in);
@@ -133,7 +141,7 @@ class myftpserver{
 			DataInputStream dis=new DataInputStream(s.getInputStream());
 			//dos.writeUTF("----Welcome to Server at port 3000 -- "+server+"----");
 			String rec = "S";
-			while(message!="exit" && rec!="exit"){
+			while(message!="exit"){	//message!="exit" && rec!="exit"
 				rec = dis.readUTF();
 				System.out.println("Command called: " +rec);
 				if(rec.equalsIgnoreCase(PWD_COMMAND)){
@@ -153,6 +161,17 @@ class myftpserver{
 				}
 				else if(rec.contains(GET_COMMAND) && rec.substring(0,3).equalsIgnoreCase(GET_COMMAND)){
 					getFile(dos, s, rec.substring(4));
+				}
+				else if(rec.equalsIgnoreCase(QUIT_COMMAND)){
+					dos.writeUTF(QUIT_MESSAGE);
+					//break;
+					System.out.println(WAITING_MSG);
+					s=server.accept();
+					dos=new DataOutputStream(s.getOutputStream());		//server
+					dis=new DataInputStream(s.getInputStream());
+				}
+				else{
+					dos.writeUTF(INVALID_CMD_MESSAGE);
 				}
 			}
 			System.out.println("Server stopped");

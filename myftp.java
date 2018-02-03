@@ -18,7 +18,7 @@ class myftp{
 			String command = "Chat started!";
 			String msg = "G";
 
-			for(;!msg.equalsIgnoreCase("exit") && !command.equalsIgnoreCase("exit");){
+			while(true){		//!msg.equalsIgnoreCase("exit") && !command.equalsIgnoreCase("exit")
 				//System.out.println(msg);
 				System.out.print("Enter command: ");
 				command = sc.nextLine();
@@ -26,12 +26,13 @@ class myftp{
 					dos.writeUTF(command);
 					byte[] buffer = new byte[maxFileSize];
 					File file = new File(download_dir+"/"+command.substring(4));
-					file.createNewFile();
+					//file.createNewFile();
 					FileOutputStream fos = new FileOutputStream(file);
 					BufferedOutputStream bos = new BufferedOutputStream(fos);
 					System.out.println("before while loop");
 					while((byteRead = dis.read(buffer, 0, buffer.length)) != -1){
 						System.out.println("in while loop");
+						System.out.println(byteRead);
 						bos.write(buffer, 0, byteRead);
 					}
 
@@ -40,6 +41,9 @@ class myftp{
 				}
 				msg = dis.readUTF();
 				System.out.println("Reply: " +msg);
+				if(command.equalsIgnoreCase("quit")){
+					break;
+				}
 			}
 		} catch(Exception e){
 			e.printStackTrace();
