@@ -128,11 +128,8 @@ class myftpserver{
 		}
 	}
 
-<<<<<<< HEAD:myftpserver.java
-	public void getFile(DataOutputStream dos, Socket s, String fileName){
-=======
-	public static void getFile(DataOutputStream dos, Socket s, String fileName) throws Exception{
->>>>>>> 62f605bcab7881c81f620d8b9c546c437a3a2748:server/myftpserver.java
+
+public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String fileName){
 		try{
         File f=new File(current_dir+"/"+fileName);
         if(!f.exists())
@@ -143,6 +140,10 @@ class myftpserver{
         else
         {
             dos.writeUTF("found");
+						if(dis.readUTF().compareTo("Cancel")==0){
+							dos.writeUTF("Opertion aborted");
+							return;
+						}
             FileInputStream fin=new FileInputStream(f);
             int ch;
             do
@@ -155,66 +156,53 @@ class myftpserver{
             dos.writeUTF("File Received Successfully");
         }
 		}catch(Exception e){
-			dos.writeUTF(UNEXPECTED_ERROR);
+			e.printStackTrace();
 		}
 	}
 
+
+ public void receiveFile(DataOutputStream dos, DataInputStream dis, Socket s, String fileName){
+	 try{
+		 File f=new File(current_dir+"/"+fileName);
+
+		 	if(f.exists()){
+			 	dos.writeUTF("File already exists in Server");
+				String opt = dis.readUTF();
+				if(opt.compareTo("N")==0){
+					System.out.println("Not overwritten");
+					dos.writeUTF("Aborted operation");
+					return;
+				}
+		 	}
+			else
+				dos.writeUTF("Sending...");
+
+			FileOutputStream fout=new FileOutputStream(f);
+			int ch;
+			String temp;
+			long lStartTime = System.currentTimeMillis();
+			do
+			{
+					temp=dis.readUTF();
+					ch=Integer.parseInt(temp);
+					if(ch!=-1)
+					{
+							fout.write(ch);
+					}
+			}while(ch!=-1);
+			fout.close();
+			long lEndTime = System.currentTimeMillis();
+			long output = lEndTime - lStartTime;
+			dos.writeUTF("Transfer complete\nElapsed time: " + (output/1000.0)+"seconds or "+ (output/(1000.0*60))+"minutes");
+
+	 }catch(Exception e){
+		 e.printStackTrace();
+	 }
+ }
+
 	public static void main(String args[]) throws Exception{
 		try{
-<<<<<<< HEAD:myftpserver.java
-			ServerSocket server=new ServerSocket(3000);
-			System.out.println("Server started");
-			System.out.println(WAITING_MSG);
-			Socket s=server.accept();
 
-			Scanner sc = new Scanner(System.in);
-			String message = "Chat started!";
-			System.out.println("Connected "+s);
-
-			myftpserver mfs = new myftpserver();
-
-			DataOutputStream dos=new DataOutputStream(s.getOutputStream());		//send message to the Client
-			DataInputStream dis=new DataInputStream(s.getInputStream());		//get input from the client
-			String rec = "S";
-
-
-			//This creates a directory called myftpserver for user. User will always be under this directory
-			if(!(new File(System.getProperty("user.dir").concat("/myftpserver")).isDirectory())){
-				File userContext = new File(System.getProperty("user.dir").concat("/myftpserver"));
-				userContext.mkdirs();
-			}
-			while(message!="exit"){	//message!="exit" && rec!="exit"
-				rec = dis.readUTF();
-				System.out.println("Command called: " +rec);
-				if(rec.equalsIgnoreCase(PWD_COMMAND)){
-				  printWorkingDirectory(dos);
-				}
-				else if(rec.contains(MKDIR_COMMAND) && rec.substring(0,5).equalsIgnoreCase(MKDIR_COMMAND)){
-					makeDirectory(dos, rec);
-				}
-				else if(rec.contains(CD_COMMAND) && rec.substring(0,2).equalsIgnoreCase(CD_COMMAND)){
-					changeDirectory(dos, rec.substring(3));
-				}
-				else if(rec.equalsIgnoreCase(LS_COMMAND)){
-					listSubdirectories(dos);
-				}
-				else if(rec.contains(DELETE_COMMAND) && rec.substring(0,6).equalsIgnoreCase(DELETE_COMMAND)){
-					deleteFile(dos, rec.substring(7));
-				}
-				else if(rec.contains(GET_COMMAND) && rec.substring(0,3).equalsIgnoreCase(GET_COMMAND)){
-					mfs.getFile(dos, s, rec.substring(4));
-				}
-				else if(rec.equalsIgnoreCase(QUIT_COMMAND)){
-					dos.writeUTF(QUIT_MESSAGE);
-					//break;
-					System.out.println(WAITING_MSG);
-					s=server.accept();
-					dos=new DataOutputStream(s.getOutputStream());		//server
-					dis=new DataInputStream(s.getInputStream());
-				}
-				else{
-					dos.writeUTF(INVALID_CMD_MESSAGE);
-=======
 				ServerSocket server=new ServerSocket(Integer.valueOf(args[0]));
 				System.out.println("Server started");
 				System.out.println(WAITING_MSG);
@@ -223,9 +211,10 @@ class myftpserver{
 				String message = "Chat started!";
 				System.out.println("Connected "+s);
 
-				DataOutputStream dos=new DataOutputStream(s.getOutputStream());		//server
-				DataInputStream dis=new DataInputStream(s.getInputStream());
-				//dos.writeUTF("----Welcome to Server at port 3000 -- "+server+"----");
+				myftpserver mfs = new myftpserver();
+
+				DataOutputStream dos=new DataOutputStream(s.getOutputStream());		//send message to the Client
+				DataInputStream dis=new DataInputStream(s.getInputStream());		//get input from the client
 				String command = "";
 
 
@@ -249,8 +238,11 @@ class myftpserver{
 						deleteFile(dos, command.substring(7));
 					}
 					else if(command.contains(GET_COMMAND) && command.substring(0,3).equalsIgnoreCase(GET_COMMAND)){
-						getFile(dos, s, command.substring(4));
-					}
+					mfs.sendFile(dos, dis, s, command.substring(4));
+				}
+				else if(command.contains(PUT_COMMAND) && command.substring(0,3).equalsIgnoreCase(PUT_COMMAND)){
+					mfs.receiveFile(dos, dis, s, command.substring(4));
+				}
 					else if(command.equalsIgnoreCase(QUIT_COMMAND)){
 						dos.writeUTF(QUIT_MESSAGE);
 						//break;
@@ -262,7 +254,6 @@ class myftpserver{
 					else{
 						dos.writeUTF(INVALID_CMD_MESSAGE);
 					}
->>>>>>> 62f605bcab7881c81f620d8b9c546c437a3a2748:server/myftpserver.java
 				}
 				System.out.println("Server stopped");
 
