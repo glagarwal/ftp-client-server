@@ -122,18 +122,26 @@ class myftpserver{
 
 	public static void getFile(DataOutputStream dos, Socket s, String fileName){
 		try{
-			if(new File(current_dir+"/"+fileName).exists()){
-				System.out.println("file exists");
-
-				File fileToSend = new File(current_dir+"/"+fileName);
-				byte[] buffer = new byte[(int) fileToSend.length()];
-				System.out.println("size of file is:"+fileToSend.length());
-				FileInputStream fs = new FileInputStream(fileToSend);
-				BufferedInputStream bis = new BufferedInputStream(fs);
-				bis.read(buffer, 0, buffer.length);
-				dos.write(buffer, 0, buffer.length);
-			}
-
+        File f=new File(current_dir+"/"+fileName);
+        if(!f.exists())
+        {
+            dos.writeUTF("File Not Found");
+            return;
+        }
+        else
+        {
+            dos.writeUTF("found");
+            FileInputStream fin=new FileInputStream(f);
+            int ch;
+            do
+            {
+                ch=fin.read();
+                dos.writeUTF(String.valueOf(ch));
+            }
+            while(ch!=-1);
+            fin.close();
+            dos.writeUTF("File Received Successfully");
+        }
 		}catch(Exception e){
 			e.printStackTrace();
 		}
@@ -150,9 +158,8 @@ class myftpserver{
 			String message = "Chat started!";
 			System.out.println("Connected "+s);
 
-			DataOutputStream dos=new DataOutputStream(s.getOutputStream());		//server
-			DataInputStream dis=new DataInputStream(s.getInputStream());
-			//dos.writeUTF("----Welcome to Server at port 3000 -- "+server+"----");
+			DataOutputStream dos=new DataOutputStream(s.getOutputStream());		//send message to the Client
+			DataInputStream dis=new DataInputStream(s.getInputStream());		//get input from the client
 			String rec = "S";
 
 
