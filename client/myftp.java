@@ -7,6 +7,7 @@ class myftp{
 	// public static int maxFileSize = 999999999;
 	public static final String GET_COMMAND = "get";
 	public static final String PUT_COMMAND = "put";
+	public static final String UNEXPECTED_ERROR = "Unexpected error occured";
 	public static final String download_dir = System.getProperty("user.dir");		//.concat("/client");
 	public static DataInputStream dis;
 	public static DataOutputStream dos;
@@ -15,7 +16,7 @@ class myftp{
 
 	public static void main(String args[]){
 		try{
-			Socket s=new Socket("127.0.0.1",3000);
+			Socket s=new Socket(args[0],Integer.valueOf(args[1]));
 			dis=new DataInputStream(s.getInputStream());	//get input from the server
 			dos=new DataOutputStream(s.getOutputStream());	//send message to the server
 			String command = "Chat started!";
@@ -23,7 +24,7 @@ class myftp{
 
 			while(true){		//!msg.equalsIgnoreCase("exit") && !command.equalsIgnoreCase("exit")
 				//System.out.println(msg);
-				System.out.print("Enter command: ");
+				System.out.print("mytftp> ");
 				command = sc.nextLine();
 				dos.writeUTF(command);
 				if(command.contains(GET_COMMAND) && command.substring(0,3).equalsIgnoreCase(GET_COMMAND)){
@@ -47,7 +48,7 @@ class myftp{
 				}
 			}
 		} catch(Exception e){
-			e.printStackTrace();
+			System.out.println(UNEXPECTED_ERROR+": "+e);
 		}
 	}
 
@@ -137,6 +138,7 @@ class myftp{
 
 		}catch(Exception e){
 			e.printStackTrace();
+
 		}
 	}
 }

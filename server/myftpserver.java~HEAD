@@ -3,9 +3,9 @@ import java.io.*;
 import java.util.*;
 
 class myftpserver{
-	public static final String root_dir = System.getProperty("user.dir").concat("/myftpserver");
+	public static final String root_dir = System.getProperty("user.dir");		//.concat("/myftpserver");
 	public static String current_dir = root_dir;
-	public static final String USER_CONTEXT = "/myftpserver";
+	public static final String USER_CONTEXT = "";
 
 	public static final String PWD_COMMAND = "pwd";
 
@@ -26,6 +26,7 @@ class myftpserver{
 	public static final String FILE_DELETED = "File deleted";
 
 	public static final String GET_COMMAND = "get";
+	public static final String PUT_COMMAND = "put";
 
 	public static final String QUIT_COMMAND = "quit";
 	public static final String QUIT_MESSAGE = "FTP Connection closed";
@@ -120,7 +121,7 @@ class myftpserver{
 		}
 	}
 
-	public void getFile(DataOutputStream dos, Socket s, String fileName){
+	public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String fileName){
 		try{
         File f=new File(current_dir+"/"+fileName);
         if(!f.exists())
@@ -131,6 +132,10 @@ class myftpserver{
         else
         {
             dos.writeUTF("found");
+						if(dis.readUTF().compareTo("Cancel")==0){
+							dos.writeUTF("Opertion aborted");
+							return;
+						}
             FileInputStream fin=new FileInputStream(f);
             int ch;
             do
@@ -146,6 +151,47 @@ class myftpserver{
 			e.printStackTrace();
 		}
 	}
+
+
+ public void receiveFile(DataOutputStream dos, DataInputStream dis, Socket s, String fileName){
+	 try{
+		 File f=new File(current_dir+"/"+fileName);
+
+		 	if(f.exists()){
+			 	dos.writeUTF("File already exists in Server");
+				String opt = dis.readUTF();
+				if(opt.compareTo("N")==0){
+					System.out.println("Not overwritten");
+					dos.writeUTF("Aborted operation");
+					return;
+				}
+		 	}
+			else
+				dos.writeUTF("Sending...");
+
+			FileOutputStream fout=new FileOutputStream(f);
+			int ch;
+			String temp;
+			long lStartTime = System.currentTimeMillis();
+			do
+			{
+					temp=dis.readUTF();
+					ch=Integer.parseInt(temp);
+					if(ch!=-1)
+					{
+							fout.write(ch);
+					}
+			}while(ch!=-1);
+			fout.close();
+			long lEndTime = System.currentTimeMillis();
+			long output = lEndTime - lStartTime;
+			dos.writeUTF("Transfer complete\nElapsed time: " + (output/1000.0)+"seconds or "+ (output/(1000.0*60))+"minutes");
+
+	 }catch(Exception e){
+		 e.printStackTrace();
+	 }
+ }
+
 
 	public static void main(String args[]){
 		try{
@@ -189,7 +235,10 @@ class myftpserver{
 					deleteFile(dos, rec.substring(7));
 				}
 				else if(rec.contains(GET_COMMAND) && rec.substring(0,3).equalsIgnoreCase(GET_COMMAND)){
-					mfs.getFile(dos, s, rec.substring(4));
+					mfs.sendFile(dos, dis, s, rec.substring(4));
+				}
+				else if(rec.contains(PUT_COMMAND) && rec.substring(0,3).equalsIgnoreCase(PUT_COMMAND)){
+					mfs.receiveFile(dos, dis, s, rec.substring(4));
 				}
 				else if(rec.equalsIgnoreCase(QUIT_COMMAND)){
 					dos.writeUTF(QUIT_MESSAGE);
