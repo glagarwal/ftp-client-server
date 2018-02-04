@@ -120,7 +120,7 @@ class myftpserver{
 		}
 	}
 
-	public static void getFile(DataOutputStream dos, Socket s, String fileName){
+	public void getFile(DataOutputStream dos, Socket s, String fileName){
 		try{
         File f=new File(current_dir+"/"+fileName);
         if(!f.exists())
@@ -158,6 +158,8 @@ class myftpserver{
 			String message = "Chat started!";
 			System.out.println("Connected "+s);
 
+			myftpserver mfs = new myftpserver();
+
 			DataOutputStream dos=new DataOutputStream(s.getOutputStream());		//send message to the Client
 			DataInputStream dis=new DataInputStream(s.getInputStream());		//get input from the client
 			String rec = "S";
@@ -187,7 +189,7 @@ class myftpserver{
 					deleteFile(dos, rec.substring(7));
 				}
 				else if(rec.contains(GET_COMMAND) && rec.substring(0,3).equalsIgnoreCase(GET_COMMAND)){
-					getFile(dos, s, rec.substring(4));
+					mfs.getFile(dos, s, rec.substring(4));
 				}
 				else if(rec.equalsIgnoreCase(QUIT_COMMAND)){
 					dos.writeUTF(QUIT_MESSAGE);
