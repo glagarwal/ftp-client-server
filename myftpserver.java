@@ -50,9 +50,9 @@ class myftpserver{
 		try{
 			if(!dir.equalsIgnoreCase(CD_BACK_COMMAND)){
 				if(dir.startsWith("/")){
-					if(new File(dir).isDirectory()){
-						current_dir = dir;
-						dos.writeUTF(CD_SUCCESS_MESSAGE+current_dir);
+					if(new File(System.getProperty("user.dir").concat(dir)).isDirectory()){
+						current_dir = System.getProperty("user.dir").concat(dir);
+						printWorkingDirectory(dos);
 					}else{
 						System.out.println("it failed");
 						dos.writeUTF(CD_FAILURE_MESSAGE);
@@ -60,8 +60,8 @@ class myftpserver{
 				}else{
 					if (new File(current_dir+"/"+dir).isDirectory()){
 					current_dir = current_dir+"/"+dir;
-					System.out.println("directory changed: "+current_dir);
-					dos.writeUTF(CD_SUCCESS_MESSAGE+current_dir);
+					System.out.println("directory changed: ");
+					printWorkingDirectory(dos);
 				}else{
 					System.out.println("it failed");
 					dos.writeUTF(CD_FAILURE_MESSAGE);
@@ -75,7 +75,7 @@ class myftpserver{
 						dos.writeUTF(CD_ROOT_MESSAGE);
 					}else{
 						current_dir = current_dir.substring(0,current_dir.lastIndexOf('/'));
-						dos.writeUTF(current_dir);
+						printWorkingDirectory(dos);
 					}
 			}
 		}catch(Exception e){
@@ -86,7 +86,7 @@ class myftpserver{
 	public static void listSubdirectories(DataOutputStream dos){
 		try{
 			File[] fList = new File(current_dir).listFiles();
-			if(fList.length == 0){
+			if(fList != null && fList.length == 0){
 				dos.writeUTF(LS_NO_SUBDIR);
 			}else{
 				String listOfFiles = "";
