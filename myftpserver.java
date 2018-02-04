@@ -31,29 +31,29 @@ class myftpserver{
 	public static final String QUIT_MESSAGE = "FTP Connection closed";
 
 	public static final String INVALID_CMD_MESSAGE = "Invalid command.";
-
+	public static final String UNEXPECTED_ERROR = "Unexpected error occured. Closing Connection";
 	public static final String WAITING_MSG = "Waiting for Connection...";
 
-	public static void printWorkingDirectory(DataOutputStream dos){
+	public static void printWorkingDirectory(DataOutputStream dos) throws Exception{
 		try{
 				String pwdString = current_dir.substring(current_dir.indexOf(USER_CONTEXT));
 				dos.writeUTF(pwdString);
-		}catch(IOException ioe){
-			ioe.printStackTrace();
+		}catch(Exception e){
+			dos.writeUTF(UNEXPECTED_ERROR);
 		}
 	}
 
-	public static void makeDirectory(DataOutputStream dos, String dir_name){
+	public static void makeDirectory(DataOutputStream dos, String dir_name) throws Exception{
 		try{
 			File dir = new File(current_dir.concat("/").concat(dir_name.substring(6)));
 			dir.mkdirs();
 			dos.writeUTF(MKDIR_SUCCESS_MESSAGE);
 		}catch(Exception e){
-			e.printStackTrace();
+			dos.writeUTF(UNEXPECTED_ERROR);
 		}
 	}
 
-	public static void changeDirectory(DataOutputStream dos, String dir){
+	public static void changeDirectory(DataOutputStream dos, String dir) throws Exception{
 		try{
 			if(!dir.equalsIgnoreCase(CD_BACK_COMMAND)){
 				if(dir.startsWith("/")){
@@ -86,11 +86,11 @@ class myftpserver{
 					}
 			}
 		}catch(Exception e){
-			e.printStackTrace();
+			dos.writeUTF(UNEXPECTED_ERROR);
 		}
 	}
 
-	public static void listSubdirectories(DataOutputStream dos){
+	public static void listSubdirectories(DataOutputStream dos) throws Exception{
 		try{
 			File[] fList = new File(current_dir).listFiles();
 			if(fList != null && fList.length == 0){
@@ -103,11 +103,11 @@ class myftpserver{
 				dos.writeUTF(listOfFiles);
 			}
 		}catch(Exception e){
-			e.printStackTrace();
+			dos.writeUTF(UNEXPECTED_ERROR);
 		}
 	}
 
-	public static void deleteFile(DataOutputStream dos, String fileName){
+	public static void deleteFile(DataOutputStream dos, String fileName) throws Exception{
 		try{
 			if(new File(current_dir+"/"+fileName).exists()){
 				new File(current_dir+"/"+fileName).delete();
@@ -116,11 +116,11 @@ class myftpserver{
 				dos.writeUTF(FILE_NOT_PRESENT);
 			}
 		}catch(Exception e){
-
+			dos.writeUTF(UNEXPECTED_ERROR);
 		}
 	}
 
-	public static void getFile(DataOutputStream dos, Socket s, String fileName){
+	public static void getFile(DataOutputStream dos, Socket s, String fileName) throws Exception{
 		try{
 			if(new File(current_dir+"/"+fileName).exists()){
 				System.out.println("file exists");
@@ -135,17 +135,16 @@ class myftpserver{
 			}
 
 		}catch(Exception e){
-			e.printStackTrace();
+			dos.writeUTF(UNEXPECTED_ERROR);
 		}
 	}
 
-	public static void main(String args[]){
-		try{
+	public static void main(String args[]) throws Exception{
+
 			ServerSocket server=new ServerSocket(3000);
 			System.out.println("Server started");
 			System.out.println(WAITING_MSG);
 			Socket s=server.accept();
-
 			Scanner sc = new Scanner(System.in);
 			String message = "Chat started!";
 			System.out.println("Connected "+s);
@@ -153,36 +152,36 @@ class myftpserver{
 			DataOutputStream dos=new DataOutputStream(s.getOutputStream());		//server
 			DataInputStream dis=new DataInputStream(s.getInputStream());
 			//dos.writeUTF("----Welcome to Server at port 3000 -- "+server+"----");
-			String rec = "S";
+			String command = "";
 
-
+		try{
 			//This creates a directory called myftpserver for user. User will always be under this directory
 			if(!(new File(System.getProperty("user.dir").concat("/myftpserver")).isDirectory())){
 				File userContext = new File(System.getProperty("user.dir").concat("/myftpserver"));
 				userContext.mkdirs();
 			}
 			while(message!="exit"){	//message!="exit" && rec!="exit"
-				rec = dis.readUTF();
-				System.out.println("Command called: " +rec);
-				if(rec.equalsIgnoreCase(PWD_COMMAND)){
+				command = dis.readUTF();
+				System.out.println("Command called: " +command);
+				if(command.equalsIgnoreCase(PWD_COMMAND)){
 				  printWorkingDirectory(dos);
 				}
-				else if(rec.contains(MKDIR_COMMAND) && rec.substring(0,5).equalsIgnoreCase(MKDIR_COMMAND)){
-					makeDirectory(dos, rec);
+				else if(command.contains(MKDIR_COMMAND) && command.substring(0,5).equalsIgnoreCase(MKDIR_COMMAND)){
+					makeDirectory(dos, command);
 				}
-				else if(rec.contains(CD_COMMAND) && rec.substring(0,2).equalsIgnoreCase(CD_COMMAND)){
-					changeDirectory(dos, rec.substring(3));
+				else if(command.contains(CD_COMMAND) && command.substring(0,2).equalsIgnoreCase(CD_COMMAND)){
+					changeDirectory(dos, command.substring(3));
 				}
-				else if(rec.equalsIgnoreCase(LS_COMMAND)){
+				else if(command.equalsIgnoreCase(LS_COMMAND)){
 					listSubdirectories(dos);
 				}
-				else if(rec.contains(DELETE_COMMAND) && rec.substring(0,6).equalsIgnoreCase(DELETE_COMMAND)){
-					deleteFile(dos, rec.substring(7));
+				else if(command.contains(DELETE_COMMAND) && command.substring(0,6).equalsIgnoreCase(DELETE_COMMAND)){
+					deleteFile(dos, command.substring(7));
 				}
-				else if(rec.contains(GET_COMMAND) && rec.substring(0,3).equalsIgnoreCase(GET_COMMAND)){
-					getFile(dos, s, rec.substring(4));
+				else if(command.contains(GET_COMMAND) && command.substring(0,3).equalsIgnoreCase(GET_COMMAND)){
+					getFile(dos, s, command.substring(4));
 				}
-				else if(rec.equalsIgnoreCase(QUIT_COMMAND)){
+				else if(command.equalsIgnoreCase(QUIT_COMMAND)){
 					dos.writeUTF(QUIT_MESSAGE);
 					//break;
 					System.out.println(WAITING_MSG);
@@ -195,8 +194,9 @@ class myftpserver{
 				}
 			}
 			System.out.println("Server stopped");
+
 		} catch(Exception e){
-			e.printStackTrace();
+			dos.writeUTF(UNEXPECTED_ERROR);
 		}
 	}
 }
