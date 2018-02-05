@@ -25,6 +25,7 @@ class myftpserver{
 	public static final String FILE_DELETED = "File deleted";
 
 	public static final String GET_COMMAND = "get";
+	public static final String PUT_COMMAND = "put";
 
 	public static final String QUIT_COMMAND = "quit";
 	public static final String QUIT_MESSAGE = "FTP Connection closed";
