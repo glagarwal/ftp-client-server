@@ -4,53 +4,13 @@ import java.util.*;
 
 class myftp{
 
-	// public static int maxFileSize = 999999999;
-	public static final String GET_COMMAND = "get";
-	public static final String PUT_COMMAND = "put";
+	public static final String GET_COMMAND = "get ";
+	public static final String PUT_COMMAND = "put ";
 	public static final String UNEXPECTED_ERROR = "Unexpected error occured";
-	public static final String download_dir = System.getProperty("user.dir");		//.concat("/client");
+	public static final String download_dir = System.getProperty("user.dir");
 	public static DataInputStream dis;
 	public static DataOutputStream dos;
 	public static Scanner sc=new Scanner(System.in);
-	// public static int byteRead;
-
-	public static void main(String args[]){
-		try{
-			Socket s=new Socket(args[0],Integer.valueOf(args[1]));
-			dis=new DataInputStream(s.getInputStream());	//get input from the server
-			dos=new DataOutputStream(s.getOutputStream());	//send message to the server
-			String command = "Chat started!";
-			String msg = "G";
-
-			while(true){		//!msg.equalsIgnoreCase("exit") && !command.equalsIgnoreCase("exit")
-				//System.out.println(msg);
-				System.out.print("mytftp> ");
-				command = sc.nextLine();
-				dos.writeUTF(command);
-				if(command.contains(GET_COMMAND) && command.substring(0,3).equalsIgnoreCase(GET_COMMAND)){
-					//dos.writeUTF(command);
-					get(command, s);
-				}
-				else if(command.contains(PUT_COMMAND) && command.substring(0,3).equalsIgnoreCase(PUT_COMMAND)){
-					File f=new File(command.substring(4));
-					if(!f.exists())
-	        {
-	            System.out.println("File Not Found on your Local machine!");
-							continue;
-					}
-					put(command, s);
-				}
-				msg = dis.readUTF();
-				System.out.println("Reply: " +msg);
-
-				if(command.equalsIgnoreCase("quit")){
-					break;
-				}
-			}
-		} catch(Exception e){
-			System.out.println(UNEXPECTED_ERROR+": "+e);
-		}
-	}
 
 //---------------GET files-----------------
 	public static void get(String command, Socket s){
@@ -107,10 +67,9 @@ class myftp{
 	public static void put(String command, Socket s){
 		try{
 				String fileName = command.substring(4);
-				//String repFromServer=dis.readUTF();
         File f=new File(fileName);
+				dos.writeUTF("Going ahead");
 				String repFromServer = dis.readUTF();
-
 
 					if(repFromServer.compareTo("File already exists in Server")==0){
 						System.out.print("File already exists in Server. Want to OverWrite (Y/N) ? ");
@@ -139,6 +98,44 @@ class myftp{
 		}catch(Exception e){
 			e.printStackTrace();
 
+		}
+	}
+
+	//---------------main method-----------------
+	public static void main(String args[]){
+		try{
+			Socket s=new Socket(args[0],Integer.valueOf(args[1]));
+			dis=new DataInputStream(s.getInputStream());	//get input from the server
+			dos=new DataOutputStream(s.getOutputStream());	//send message to the server
+			String command = "Chat started!";
+			String msg = "G";
+
+			while(true){
+				System.out.print("mytftp> ");
+				command = sc.nextLine();
+				dos.writeUTF(command);
+				if(command.contains(GET_COMMAND) && command.substring(0,4).equalsIgnoreCase(GET_COMMAND)){
+					get(command, s);
+				}
+				else if(command.contains(PUT_COMMAND) && command.substring(0,4).equalsIgnoreCase(PUT_COMMAND)){
+					File f=new File(command.substring(4));
+					if(!f.exists())
+					{
+							System.out.println("File Not Found on your Local machine!");
+							dos.writeUTF("operation Aborted");
+							continue;
+					}
+					put(command, s);
+				}
+				msg = dis.readUTF();
+				System.out.println("Reply: " +msg);
+
+				if(command.equalsIgnoreCase("quit")){
+					break;
+				}
+			}
+		} catch(Exception e){
+			System.out.println(UNEXPECTED_ERROR+": "+e);
 		}
 	}
 }
