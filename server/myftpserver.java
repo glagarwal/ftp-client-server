@@ -2,7 +2,7 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 
-class myftpserver{
+class myftpserver extends Thread{
 	public static final String root_dir = System.getProperty("user.dir");
 	public static String current_dir = root_dir;
 
@@ -34,6 +34,31 @@ class myftpserver{
 	public static final String UNEXPECTED_ERROR = "Unexpected error occured";
 	public static final String WAITING_MSG = "Waiting for Connection...";
 
+	//This section is for feature of termination port and multithreading.
+	//see here for details: https://github.com/glagarwal/ftp-client-server/issues/13.
+	public static final String TERMINATE_COMMAND = "terminate ";
+	public static final String N_PORT = "nport";
+	public static final String T_PORT = "tport";
+	public static final String TERMINATE_SUCCESSFUL = "terminated";
+
+	//This flag is used to indicate that tport is now connected and terminate command has been called once
+	public boolean isTerminated = false;
+	public ServerSocket server;
+	public Socket s;
+	public String portType;
+	public int portNumber;
+
+	//----------------------Constructor to instantiate myftpserver thread (Created to make server multi-threaded)-----------
+	myftpserver(int portNumber, String portType){
+		try{
+			this.portType = portType;
+			this.portNumber = portNumber;
+			this.server=new ServerSocket(portNumber);
+			System.out.println("Server started for "+this.portNumber+" "+this.portType);
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+	}//------------------end of Constructor---------------------
 	//------------------printWorkingDirectory in correspondence to the pwd command from client-------------------
 	public static void printWorkingDirectory(DataOutputStream dos) throws Exception{
 		try{
@@ -215,63 +240,84 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String
 		 e.printStackTrace();
 	 }
  }//------------------end of receiveFile()-------------------
+ //--------------------------------run() method is overridden here to execute server tasks------------------------------
+	public void run(){
+		try{
+			this.s = this.server.accept();
+			Scanner sc = new Scanner(System.in);
+			String message = "Chat started!";
+			System.out.println("Connected "+this.s);
 
+			DataOutputStream dos=new DataOutputStream(this.s.getOutputStream());		//send message to the Client
+			DataInputStream dis=new DataInputStream(this.s.getInputStream());		//get input from the client
+			String command = "";
+
+			while(message!="exit"){
+				System.out.println("server while loop");
+				command = dis.readUTF();
+				System.out.println("Command called: " +command);
+				if(command.equalsIgnoreCase(PWD_COMMAND)){
+					this.printWorkingDirectory(dos);
+				}
+				else if(command.contains(MKDIR_COMMAND) && command.substring(0,6).equalsIgnoreCase(MKDIR_COMMAND)){
+					this.makeDirectory(dos, command);
+				}
+				else if(command.contains(CD_COMMAND) && command.substring(0,3).equalsIgnoreCase(CD_COMMAND)){
+					this.changeDirectory(dos, command.substring(3));
+				}
+				else if(command.equalsIgnoreCase(LS_COMMAND)){
+					System.out.println("checking ls port is -> "+this.portType);
+					this.listSubdirectories(dos);
+				}
+				else if(command.contains(DELETE_COMMAND) && command.substring(0,7).equalsIgnoreCase(DELETE_COMMAND)){
+					this.deleteFile(dos, command.substring(7));
+				}
+				else if(command.contains(GET_COMMAND) && command.substring(0,4).equalsIgnoreCase(GET_COMMAND)){
+					this.sendFile(dos, dis, s, command.substring(4));
+				}
+				else if(command.contains(PUT_COMMAND) && command.substring(0,4).equalsIgnoreCase(PUT_COMMAND)){
+					this.receiveFile(dos, dis, s, command.substring(4));
+				}
+				//If terminate command is recieved (it can only be recieved on tport), We do terminate stuff
+				else if(command.contains(TERMINATE_COMMAND)){
+					System.out.println("Terminate command called "+this.portType);
+					System.out.println("Before sending reply");
+					//This is just a test message sent back to client. Will be modified later
+					dos.writeUTF(TERMINATE_SUCCESSFUL);
+					System.out.println("After sending reply");
+					//Setting isTerminated as true as an indication that terminate command has been called
+					this.isTerminated = true;
+					Thread.currentThread().sleep(10);
+				}
+				else if(command.equalsIgnoreCase(QUIT_COMMAND)){
+					dos.writeUTF(QUIT_MESSAGE);
+					//break;
+					System.out.println(WAITING_MSG);
+					this.s=this.server.accept();
+					System.out.println("Connected "+s);
+					dos=new DataOutputStream(this.s.getOutputStream());		//send message to the Client
+					dis=new DataInputStream(this.s.getInputStream());			//get input from the client
+				}
+				else{
+					dos.writeUTF(INVALID_CMD_MESSAGE);
+				}
+			}
+			System.out.println("Server stopped running");
+		}catch(Exception e){
+			System.out.println("Port is "+this.portType);
+			e.printStackTrace();
+		}
+	}
+	//------------------------------run() method ends-------------------------------------------------
 	//------------------main method-------------------
 	public static void main(String args[]) throws Exception{
 		try{
-
-				ServerSocket server=new ServerSocket(Integer.valueOf(args[0]));
-				System.out.println("Server started");
-				System.out.println(WAITING_MSG);
-				Socket s=server.accept();
-				Scanner sc = new Scanner(System.in);
-				String message = "Chat started!";
-				System.out.println("Connected "+s);
-
-				myftpserver mfs = new myftpserver();
-
-				DataOutputStream dos=new DataOutputStream(s.getOutputStream());		//send message to the Client
-				DataInputStream dis=new DataInputStream(s.getInputStream());		//get input from the client
-				String command = "";
-
-				while(message!="exit"){
-					command = dis.readUTF();
-					System.out.println("Command called: " +command);
-					if(command.equalsIgnoreCase(PWD_COMMAND)){
-					  printWorkingDirectory(dos);
-					}
-					else if(command.contains(MKDIR_COMMAND) && command.substring(0,6).equalsIgnoreCase(MKDIR_COMMAND)){
-						makeDirectory(dos, command);
-					}
-					else if(command.contains(CD_COMMAND) && command.substring(0,3).equalsIgnoreCase(CD_COMMAND)){
-						changeDirectory(dos, command.substring(3));
-					}
-					else if(command.equalsIgnoreCase(LS_COMMAND)){
-						listSubdirectories(dos);
-					}
-					else if(command.contains(DELETE_COMMAND) && command.substring(0,7).equalsIgnoreCase(DELETE_COMMAND)){
-						deleteFile(dos, command.substring(7));
-					}
-					else if(command.contains(GET_COMMAND) && command.substring(0,4).equalsIgnoreCase(GET_COMMAND)){
-						mfs.sendFile(dos, dis, s, command.substring(4));
-					}
-					else if(command.contains(PUT_COMMAND) && command.substring(0,4).equalsIgnoreCase(PUT_COMMAND)){
-						mfs.receiveFile(dos, dis, s, command.substring(4));
-					}
-					else if(command.equalsIgnoreCase(QUIT_COMMAND)){
-						dos.writeUTF(QUIT_MESSAGE);
-						//break;
-						System.out.println(WAITING_MSG);
-						s=server.accept();
-						System.out.println("Connected "+s);
-						dos=new DataOutputStream(s.getOutputStream());		//send message to the Client
-						dis=new DataInputStream(s.getInputStream());			//get input from the client
-					}
-					else{
-						dos.writeUTF(INVALID_CMD_MESSAGE);
-					}
-				}
-				System.out.println("Server stopped");
+					// This method is modified so that when this class is invoked, it will spawn off
+					// two threads listening on nport and tport simultaeously.
+					myftpserver nportServer = new myftpserver(Integer.valueOf(args[0]), N_PORT);
+					myftpserver tportServer = new myftpserver(Integer.valueOf(args[1]), T_PORT);
+					nportServer.start();
+					tportServer.start();
 
 		} catch(Exception e){
 			System.out.println(UNEXPECTED_ERROR+": "+e);

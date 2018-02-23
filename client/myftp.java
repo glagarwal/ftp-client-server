@@ -2,7 +2,7 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 
-class myftp{
+class myftp extends Thread{
 
 	public static final String GET_COMMAND = "get ";
 	public static final String PUT_COMMAND = "put ";
@@ -11,7 +11,34 @@ class myftp{
 	public static DataInputStream dis;
 	public static DataOutputStream dos;
 	public static Scanner sc=new Scanner(System.in);
+	public static Socket s;
+	// This section is for feature of termination port and multithreading.
+	// see here for details: https://github.com/glagarwal/ftp-client-server/issues/13.
+	public static final String TERMINATE_COMMAND = "terminate ";
+	public static final String TERMINATE_SUCCESSFUL = "terminated";
+	public static final String N_PORT = "nport";
+	public static final String T_PORT = "tport";
+	public String portType;
+	public int portNumber;
+	public int terminatePortNumber;
+	public String machineName = "";
+	// isTerminate is used to determine wether client has already connected to tport or not.
+	public boolean isTerminate = false;
+	public static Socket terminateSocket;
 
+	//----------------------Constructor to instantiate myftp main thread (Created to make client multi-threaded)-----------
+	public myftp(String machineName, int portNumber, int terminatePortNumber, String portType){
+		try{
+			this.portType = portType;
+			this.portNumber = portNumber;
+			this.machineName = machineName;
+			this.terminatePortNumber = terminatePortNumber;
+
+			this.s = new Socket(machineName,portNumber);
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+	}
 //---------------GET files-----------------
 	public static void get(String command, Socket s){
 		try{
@@ -100,40 +127,81 @@ class myftp{
 
 		}
 	}
+	//--------------------------------run() method is overridden here to execute client tasks------------------------------
+	public void run(){
+		try{
+			this.dis=new DataInputStream(this.s.getInputStream());	//get input from the server
+			this.dos=new DataOutputStream(this.s.getOutputStream());	//send message to the server
+			String command = "Chat started!";
+			String msg = "G";
+			while(true){
+				System.out.println("In while loop");
+				System.out.print("mytftp> "+ this.portType+" >");
+				command = sc.nextLine();
+				if(!command.contains(TERMINATE_COMMAND)){
+					// Do normal main thread stuff
+					if(command.equalsIgnoreCase("quit")){
+						//quit command on main thread should also quit the tport connection
+						dos.writeUTF(command);
+						// we send quit command to tport server only if it exists in the first place
+						if(this.isTerminate){
+							DataOutputStream t_dos=new DataOutputStream(terminateSocket.getOutputStream());
+							t_dos.writeUTF(command);
+						}
+					}else{
+						// Send normal commands
+						dos.writeUTF(command);
+					}
+					if(command.contains(GET_COMMAND) && command.substring(0,4).equalsIgnoreCase(GET_COMMAND)){
+						get(command, s);
+					}
+					else if(command.contains(PUT_COMMAND) && command.substring(0,4).equalsIgnoreCase(PUT_COMMAND)){
+						File f=new File(command.substring(4));
+						if(!f.exists())
+						{
+								System.out.println("File Not Found on your Local machine!");
+								dos.writeUTF("operation Aborted");
+								continue;
+						}
+						put(command, s);
+					}
+					msg = dis.readUTF();
+					System.out.println("Reply: " +msg);
 
+					if(command.equalsIgnoreCase("quit")){
+						break;
+					}
+				}else{
+					// If terminate command is called first time, create a connection to tport server
+					if(!this.isTerminate){
+						this.terminateSocket = new Socket(this.machineName, this.terminatePortNumber);
+						this.isTerminate = true;
+					}
+					System.out.println("command is terminate");
+					DataInputStream t_dis=new DataInputStream(terminateSocket.getInputStream());	//get input from the server
+					DataOutputStream t_dos=new DataOutputStream(terminateSocket.getOutputStream());	//send message to the server
+					t_dos.writeUTF(command);
+					String msg_t = t_dis.readUTF();
+					System.out.println("connected to tport "+this.terminatePortNumber);
+					System.out.println("returned msg is "+msg_t);
+					//reading if correct message from server is recieved
+					if(msg_t.equalsIgnoreCase(TERMINATE_SUCCESSFUL)){
+						System.out.println("Killing the thread");
+					 }
+				}
+			}
+		} catch(Exception e){
+			System.out.println(UNEXPECTED_ERROR+": "+e);
+		}
+	}
+	//-------------------run() method ends-------------------------------------------
 	//---------------main method-----------------
 	public static void main(String args[]){
 		try{
-			Socket s=new Socket(args[0],Integer.valueOf(args[1]));
-			dis=new DataInputStream(s.getInputStream());	//get input from the server
-			dos=new DataOutputStream(s.getOutputStream());	//send message to the server
-			String command = "Chat started!";
-			String msg = "G";
-
-			while(true){
-				System.out.print("mytftp> ");
-				command = sc.nextLine();
-				dos.writeUTF(command);
-				if(command.contains(GET_COMMAND) && command.substring(0,4).equalsIgnoreCase(GET_COMMAND)){
-					get(command, s);
-				}
-				else if(command.contains(PUT_COMMAND) && command.substring(0,4).equalsIgnoreCase(PUT_COMMAND)){
-					File f=new File(command.substring(4));
-					if(!f.exists())
-					{
-							System.out.println("File Not Found on your Local machine!");
-							dos.writeUTF("operation Aborted");
-							continue;
-					}
-					put(command, s);
-				}
-				msg = dis.readUTF();
-				System.out.println("Reply: " +msg);
-
-				if(command.equalsIgnoreCase("quit")){
-					break;
-				}
-			}
+		  // This method is modified so that when this class is invoked, it will spawn off
+			// main client thread.
+			myftp mainThread = new myftp(args[0], Integer.valueOf(args[1]), Integer.valueOf(args[2]), N_PORT);
+			mainThread.start();
 		} catch(Exception e){
 			System.out.println(UNEXPECTED_ERROR+": "+e);
 		}
