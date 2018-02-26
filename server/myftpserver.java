@@ -9,7 +9,6 @@ class tport_get_put extends Thread
     final Socket s;
 		final String cmd;
 		final String current_dir;
-
     // Constructor
     public tport_get_put(DataOutputStream dos, DataInputStream dis, Socket s, String command, String pwd)
     {
