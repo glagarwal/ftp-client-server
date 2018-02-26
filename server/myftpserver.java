@@ -2,6 +2,123 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 
+class tport_get_put extends Thread
+{
+    final DataInputStream dis;
+    final DataOutputStream dos;
+    final Socket s;
+		final String cmd;
+		final String current_dir;
+
+    // Constructor
+    public tport_get_put(DataOutputStream dos, DataInputStream dis, Socket s, String command, String pwd)
+    {
+        this.s = s;
+        this.dis = dis;
+        this.dos = dos;
+				this.cmd = command;
+				this.current_dir = pwd;
+    }
+
+		//------------------sendFile in correspondence to the get command from client-------------------
+		public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String fileName){
+				try{
+		        File f=new File(current_dir+"/"+fileName);
+		        if(!f.exists())
+		        {
+		            dos.writeUTF("File Not Found");
+								dos.writeUTF("operation Aborted");
+		            return;
+		        }
+		        else
+		        {
+		            dos.writeUTF("found");
+								if(dis.readUTF().compareTo("Cancel")==0){
+									dos.writeUTF("Opertion aborted");
+									return;
+								}
+		            FileInputStream fin=new FileInputStream(f);
+		            int ch;
+								long transfered = 0;
+								long file_size = 0;
+		            do
+		            {
+		                ch=fin.read();
+										transfered++;
+										file_size++;
+										if(transfered>=1000){
+											if(dis.readUTF().compareTo("terminate")==0){
+												dos.writeUTF("File transfer interrupted");
+												return;
+											}
+											transfered = 0;
+										}
+		                dos.writeUTF(String.valueOf(ch));
+		            }
+		            while(ch!=-1);
+		            fin.close();
+		            dos.writeUTF("File Received Successfully. File size: "+file_size);
+		        }
+				}catch(Exception e){
+					e.printStackTrace();
+				}
+			}//------------------end of sendFile()-------------------
+
+		//------------------receiveFile in correspondence to the put command from client-------------------
+		 public void receiveFile(DataOutputStream dos, DataInputStream dis, Socket s, String fileName){
+			 try{
+				 File f=new File(current_dir+"/"+fileName);
+
+				 if(dis.readUTF().compareTo("operation Aborted")==0){
+					 // dos.writeUTF("operation Aborted");
+					 return;
+				 }
+
+				 	if(f.exists()){
+					 	dos.writeUTF("File already exists in Server");
+						String opt = dis.readUTF();
+						if(opt.compareTo("N")==0){
+							System.out.println("Not overwritten");
+							dos.writeUTF("Aborted operation");
+							return;
+						}
+				 	}
+					else
+						dos.writeUTF("Sending...");
+
+					FileOutputStream fout=new FileOutputStream(f);
+					int ch;
+					String temp;
+					long lStartTime = System.currentTimeMillis();
+					do
+					{
+							temp=dis.readUTF();
+							ch=Integer.parseInt(temp);
+							if(ch!=-1)
+							{
+									fout.write(ch);
+							}
+					}while(ch!=-1);
+					fout.close();
+					long lEndTime = System.currentTimeMillis();
+					long output = lEndTime - lStartTime;
+					dos.writeUTF("Transfer complete\nElapsed time: " + (output/1000.0)+"seconds or "+ (output/(1000.0*60))+"minutes");
+
+			 }catch(Exception e){
+				 e.printStackTrace();
+			 }
+		 }//------------------end of receiveFile()-------------------
+
+    @Override
+    public void run(){
+			if(cmd.contains("GET"))
+					this.sendFile(dos, dis, s, cmd.substring(4));
+			else if(cmd.contains("PUT"))
+					this.receiveFile(dos, dis, s, cmd.substring(4));
+		}
+}
+
+
 class myftpserver extends Thread{
 	public static final String root_dir = System.getProperty("user.dir");
 	public static String current_dir = root_dir;
@@ -36,6 +153,7 @@ class myftpserver extends Thread{
 
 	//This section is for feature of termination port and multithreading.
 	//see here for details: https://github.com/glagarwal/ftp-client-server/issues/13.
+	public static final String T_PORT_CALL = " &";
 	public static final String TERMINATE_COMMAND = "terminate ";
 	public static final String N_PORT = "nport";
 	public static final String T_PORT = "tport";
@@ -243,8 +361,8 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String
  //--------------------------------run() method is overridden here to execute server tasks------------------------------
 	public void run(){
 		try{
-			this.s = this.server.accept();
-			Scanner sc = new Scanner(System.in);
+			// this.s = this.server.accept();
+			// Scanner sc = new Scanner(System.in);
 			String message = "Chat started!";
 			System.out.println("Connected "+this.s);
 
@@ -273,7 +391,13 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String
 					this.deleteFile(dos, command.substring(7));
 				}
 				else if(command.contains(GET_COMMAND) && command.substring(0,4).equalsIgnoreCase(GET_COMMAND)){
-					this.sendFile(dos, dis, s, command.substring(4));
+					int at_end = command.length() - 2;
+					if(command.substring(at_end).equals(T_PORT_CALL)){
+            Thread t = new tport_get_put(dos, dis, s, command.substring(0, at_end), current_dir);			// create a new thread object on tport
+            t.start();	    																// Invoking the start() method
+					}
+					else
+						this.sendFile(dos, dis, s, command.substring(4));
 				}
 				else if(command.contains(PUT_COMMAND) && command.substring(0,4).equalsIgnoreCase(PUT_COMMAND)){
 					this.receiveFile(dos, dis, s, command.substring(4));
