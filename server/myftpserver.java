@@ -43,10 +43,6 @@ class myftpserver extends Thread{
 
 	//This flag is used to indicate that tport is now connected and terminate command has been called once
 	public boolean isTerminated = false;
-	public ServerSocket server;
-	public Socket s;
-	public String portType;
-	public int portNumber;
 
 	//----------------------Constructor to instantiate myftpserver thread (Created to make server multi-threaded)-----------
 	myftpserver(int portNumber, String portType){
@@ -319,6 +315,46 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String
 					nportServer.start();
 					tportServer.start();
 
+		} catch(Exception e){
+			System.out.println(UNEXPECTED_ERROR+": "+e);
+		}
+	}
+}
+/**
+This class handles multiple client connections and spawns off new thread for each client
+*/
+class ClientManager extends Thread{
+
+	public ServerSocket nportServer;
+	public ServerSocket tportServer;
+	public int nportNumber;
+	public int tportNumber;
+
+	public ClientManager(int nportNumber, int tportNumber) {
+		this.nportNumber = nportNumber;
+		this.tportNumber = tportNumber
+	}
+
+	public run() {
+		this.nportServer = new ServerSocket(nportNumber);
+		this.tportServer = new ServerSocket(tportNumber);
+		while(true) {
+			try {
+				Socket client = this.nportServer.accept();
+			} catch(Exception e) {
+				System.out.println("Error Connecting to the server")
+				e.printStackTrace();
+			}
+			myftpserver mainThread = new myftp(this.nportServer, this.tportServer, tportNumber);
+		}
+	}
+	//------------------main method-------------------
+	public static void main(String args[]) throws Exception{
+		try{
+			// This method is modified so that when this class is invoked, it will spawn off
+		  // two threads listening on nport and tport simultaeously.
+			ClientManager server = new ClientManager(Integer.valueOf(args[0]), Integer.valueOf(args[0]));
+			nportServer.start();
 		} catch(Exception e){
 			System.out.println(UNEXPECTED_ERROR+": "+e);
 		}
