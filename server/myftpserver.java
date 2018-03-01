@@ -4,20 +4,36 @@ import java.util.*;
 
 class tport_get_put extends Thread
 {
-    final DataInputStream dis;
-    final DataOutputStream dos;
-    final Socket s;
-		final String cmd;
-		final String current_dir;
+    public DataInputStream dis;
+    public DataOutputStream dos;
+    public ServerSocket tportServer;
     // Constructor
-    public tport_get_put(DataOutputStream dos, DataInputStream dis, Socket s, String command, String pwd)
+    public tport_get_put(ServerSocket nportServer, ServerSocket tportServer)
     {
-        this.s = s;
-        this.dis = dis;
-        this.dos = dos;
-				this.cmd = command;
-				this.current_dir = pwd;
+				this.tportServer = tportServer;
+        this.dis = new DataInputStream(nportServer.getInputStream());
+        this.dos = new DataOutputStream(nportServer.getOutputStream());
     }
+
+		class tport extends Thread{
+			ServerSocket tportServer;
+			public tport(ServerSocket tportServer) {
+				this.tportServer = tportServer;
+			}
+			public run(){
+				Socket tportClient = this.tportServer.accept();
+			}
+		}
+
+		@Override
+    public void run(){
+			tport tportThread = new tport(this.tportServer);
+			tportThread.start();
+			if(cmd.contains("GET"))
+					this.sendFile(dos, dis, s, cmd.substring(4));
+			else if(cmd.contains("PUT"))
+					this.receiveFile(dos, dis, s, cmd.substring(4));
+		}
 
 		//------------------sendFile in correspondence to the get command from client-------------------
 		public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String fileName){
@@ -107,16 +123,7 @@ class tport_get_put extends Thread
 				 e.printStackTrace();
 			 }
 		 }//------------------end of receiveFile()-------------------
-
-    @Override
-    public void run(){
-			if(cmd.contains("GET"))
-					this.sendFile(dos, dis, s, cmd.substring(4));
-			else if(cmd.contains("PUT"))
-					this.receiveFile(dos, dis, s, cmd.substring(4));
-		}
 }
-
 
 class myftpserver extends Thread{
 	public static final String root_dir = System.getProperty("user.dir");
@@ -468,7 +475,7 @@ class ClientManager extends Thread{
 				System.out.println("Error Connecting to the server")
 				e.printStackTrace();
 			}
-			myftpserver mainThread = new myftp(this.nportServer, this.tportServer, tportNumber);
+			tport_get_put mainThread = new tport_get_put(this.nportServer, this.tportServer, tportNumber);
 		}
 	}
 	//------------------main method-------------------
