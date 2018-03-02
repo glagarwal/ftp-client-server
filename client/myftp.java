@@ -14,6 +14,8 @@ class myftp implements Runnable {
 
 	public static Socket s;
 	public static Socket terminateSocket;
+	public static DataInputStream dis_terminate;
+	public static DataOutputStream dos_terminate;
 	public static final String TERMINATE_COMMAND = "terminate ";
 	public static final String TERMINATE_SUCCESSFUL = "terminated";
 	public static final String N_PORT = "nport";
@@ -41,9 +43,11 @@ class myftp implements Runnable {
 	//---------------GET files-----------------
 	public static void get(String command, Socket s) {
 		try {
+
+			System.out.println("In get method"+dos.size());
 			String fileName = command.substring(4);
 			String repFromServer = dis.readUTF();
-
+			System.out.println("Reply from server is---- "+repFromServer);
 			if (repFromServer.compareTo("File Not Found") == 0) {
 				System.out.println("File not found on Server ...");
 				return;
@@ -127,6 +131,11 @@ class myftp implements Runnable {
 			s = new Socket(args[0], Integer.valueOf(args[1]));
 			dis = new DataInputStream(s.getInputStream()); //get input from the server
 			dos = new DataOutputStream(s.getOutputStream()); //send message to the server
+
+			terminateSocket = new Socket(args[0], Integer.valueOf(args[2]));
+			dis_terminate = new DataInputStream(terminateSocket.getInputStream());
+			dos_terminate = new DataOutputStream(terminateSocket.getOutputStream());
+
 			String command = "Chat started!";
 			String msg = "G";
 
@@ -139,6 +148,9 @@ class myftp implements Runnable {
 				if (command.contains(GET_COMMAND) && command.substring(0, 4).equalsIgnoreCase(GET_COMMAND)) {
 					int at_end = command.length() - 2;
 					if (command.substring(at_end).equals(RUN_ON_NEW_THREAD)) {
+						System.out.println("Starting new thread");
+						String msga = dis.readUTF();
+						System.out.println("Reply from get is: " + msga);
 						t = new Thread(new myftp(command));
 						t.start();
 					} else

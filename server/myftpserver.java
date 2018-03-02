@@ -2,129 +2,6 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 
-class tport_get_put extends Thread
-{
-    public DataInputStream dis;
-    public DataOutputStream dos;
-    public ServerSocket tportServer;
-    // Constructor
-    public tport_get_put(ServerSocket nportServer, ServerSocket tportServer)
-    {
-				this.tportServer = tportServer;
-        this.dis = new DataInputStream(nportServer.getInputStream());
-        this.dos = new DataOutputStream(nportServer.getOutputStream());
-    }
-
-		class tport extends Thread{
-			ServerSocket tportServer;
-			public tport(ServerSocket tportServer) {
-				this.tportServer = tportServer;
-			}
-			public run(){
-				Socket tportClient = this.tportServer.accept();
-			}
-		}
-
-		@Override
-    public void run(){
-			tport tportThread = new tport(this.tportServer);
-			tportThread.start();
-			if(cmd.contains("GET"))
-					this.sendFile(dos, dis, s, cmd.substring(4));
-			else if(cmd.contains("PUT"))
-					this.receiveFile(dos, dis, s, cmd.substring(4));
-		}
-
-		//------------------sendFile in correspondence to the get command from client-------------------
-		public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String fileName){
-				try{
-		        File f=new File(current_dir+"/"+fileName);
-		        if(!f.exists())
-		        {
-		            dos.writeUTF("File Not Found");
-								dos.writeUTF("operation Aborted");
-		            return;
-		        }
-		        else
-		        {
-		            dos.writeUTF("found");
-								if(dis.readUTF().compareTo("Cancel")==0){
-									dos.writeUTF("Opertion aborted");
-									return;
-								}
-		            FileInputStream fin=new FileInputStream(f);
-		            int ch;
-								long transfered = 0;
-								long file_size = 0;
-		            do
-		            {
-		                ch=fin.read();
-										transfered++;
-										file_size++;
-										if(transfered>=1000){
-											if(dis.readUTF().compareTo("terminate")==0){
-												dos.writeUTF("File transfer interrupted");
-												return;
-											}
-											transfered = 0;
-										}
-		                dos.writeUTF(String.valueOf(ch));
-		            }
-		            while(ch!=-1);
-		            fin.close();
-		            dos.writeUTF("File Received Successfully. File size: "+file_size);
-		        }
-				}catch(Exception e){
-					e.printStackTrace();
-				}
-			}//------------------end of sendFile()-------------------
-
-		//------------------receiveFile in correspondence to the put command from client-------------------
-		 public void receiveFile(DataOutputStream dos, DataInputStream dis, Socket s, String fileName){
-			 try{
-				 File f=new File(current_dir+"/"+fileName);
-
-				 if(dis.readUTF().compareTo("operation Aborted")==0){
-					 // dos.writeUTF("operation Aborted");
-					 return;
-				 }
-
-				 	if(f.exists()){
-					 	dos.writeUTF("File already exists in Server");
-						String opt = dis.readUTF();
-						if(opt.compareTo("N")==0){
-							System.out.println("Not overwritten");
-							dos.writeUTF("Aborted operation");
-							return;
-						}
-				 	}
-					else
-						dos.writeUTF("Sending...");
-
-					FileOutputStream fout=new FileOutputStream(f);
-					int ch;
-					String temp;
-					long lStartTime = System.currentTimeMillis();
-					do
-					{
-							temp=dis.readUTF();
-							ch=Integer.parseInt(temp);
-							if(ch!=-1)
-							{
-									fout.write(ch);
-							}
-					}while(ch!=-1);
-					fout.close();
-					long lEndTime = System.currentTimeMillis();
-					long output = lEndTime - lStartTime;
-					dos.writeUTF("Transfer complete\nElapsed time: " + (output/1000.0)+"seconds or "+ (output/(1000.0*60))+"minutes");
-
-			 }catch(Exception e){
-				 e.printStackTrace();
-			 }
-		 }//------------------end of receiveFile()-------------------
-}
-
 class myftpserver extends Thread{
 	public static final String root_dir = System.getProperty("user.dir");
 	public static String current_dir = root_dir;
@@ -164,21 +41,88 @@ class myftpserver extends Thread{
 	public static final String N_PORT = "nport";
 	public static final String T_PORT = "tport";
 	public static final String TERMINATE_SUCCESSFUL = "terminated";
+  public Socket nportSocket;
+	public ServerSocket tportServer;
+  public Socket tportSocket;
 
-	//This flag is used to indicate that tport is now connected and terminate command has been called once
-	public boolean isTerminated = false;
+  // To identify in which context the thread is runnning, we create below flags and assign them to
+  public boolean threadContextNport = false;
+  public boolean threadContextTport = false;
+  public boolean threadContextGet = false;
+  public boolean threadContextPut = false;
 
-	//----------------------Constructor to instantiate myftpserver thread (Created to make server multi-threaded)-----------
-	myftpserver(int portNumber, String portType){
+  public static DataOutputStream dos;
+  public static DataInputStream dis;
+	//GET and PUT threads use this variables
+  //public DataOutputStream dos_get;
+  //public DataInputStream dis_get;
+  public String fileNameGet = "";
+  public String currentDirGet = "";
+
+  public DataOutputStream dos_put;
+  public DataInputStream dis_put;
+  public String fileNamePut = "";
+  public String currentDirPut = "";
+
+  public Map<Long, Boolean> terminateMap= new HashMap<Long, Boolean>();
+
+	//----------------------Constructor to instantiate myftpserver nport thread ------------------------------
+	myftpserver(Socket nportSocket, ServerSocket tportServer, boolean threadContextNport){
 		try{
-			this.portType = portType;
-			this.portNumber = portNumber;
-			this.server=new ServerSocket(portNumber);
-			System.out.println("Server started for "+this.portNumber+" "+this.portType);
+      System.out.println("In nport constructor");
+      this.threadContextNport = threadContextNport;
+			this.nportSocket = nportSocket;
+      this.tportServer = tportServer;
 		}catch(Exception e){
 			e.printStackTrace();
 		}
 	}//------------------end of Constructor---------------------
+  //----------------------Constructor to instantiate myftpserver tport thread ----------------------------------
+	myftpserver(Socket tportSocket, boolean threadContextTport){
+		try{
+      this.threadContextTport = threadContextTport;
+      this.tportSocket = tportSocket;
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+	}//------------------end of Constructor---------------------
+  //----------------------Constructor to instantiate myftpserver get thread ----------------------------------
+  myftpserver(Socket nportSocket, DataOutputStream dos, DataInputStream dis, String fileName, String current_dir, boolean isThreadContextGet){
+    try{
+      if(isThreadContextGet){
+        this.nportSocket = nportSocket;
+        this.threadContextGet = isThreadContextGet;
+        //this.dos_get = dos;
+        //this.dis_get = dis;
+        this.fileNameGet = fileName;
+        this.currentDirGet = current_dir;
+      }
+      else{
+        this.threadContextPut = isThreadContextGet;
+        //this.dos_put = dos;
+        //this.dis_put = dis;
+        this.fileNamePut = fileName;
+        this.currentDirPut = current_dir;
+      }
+    }catch(Exception e){
+      e.printStackTrace();
+    }
+  }//------------------end of Constructor---------------------
+  //-------------method to change terminateMap values-----------------
+  public synchronized boolean mapMethods(long threadId, boolean isTerminate, String operation){
+    if(operation.equalsIgnoreCase("set")){
+      this.terminateMap.put(threadId, isTerminate);
+      return true;
+    }
+    else if(operation.equalsIgnoreCase("get")){
+      return this.terminateMap.get(threadId);
+    }
+    else if(operation.equalsIgnoreCase("remove")){
+      this.terminateMap.remove(threadId);
+      return true;
+    }
+    return false;
+  }
 	//------------------printWorkingDirectory in correspondence to the pwd command from client-------------------
 	public static void printWorkingDirectory(DataOutputStream dos) throws Exception{
 		try{
@@ -284,7 +228,7 @@ class myftpserver extends Thread{
 	}//------------------end of deleteFile()-------------------
 
 //------------------sendFile in correspondence to the get command from client-------------------
-public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String fileName){
+public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName){
 		try{
         File f=new File(current_dir+"/"+fileName);
         if(!f.exists())
@@ -317,7 +261,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String
 	}//------------------end of sendFile()-------------------
 
 //------------------receiveFile in correspondence to the put command from client-------------------
- public void receiveFile(DataOutputStream dos, DataInputStream dis, Socket s, String fileName){
+ public void receiveFile(DataOutputStream dos, DataInputStream dis, String fileName){
 	 try{
 		 File f=new File(current_dir+"/"+fileName);
 
@@ -363,92 +307,131 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, Socket s, String
  //--------------------------------run() method is overridden here to execute server tasks------------------------------
 	public void run(){
 		try{
+      System.out.println("In run");
 			// this.s = this.server.accept();
 			// Scanner sc = new Scanner(System.in);
-			String message = "Chat started!";
-			System.out.println("Connected "+this.s);
+      if(this.threadContextNport){
+        System.out.println("In nport loop ");
+        String message = "Chat started!";
+  			System.out.println("Connected nport "+this.nportSocket);
+        Socket tportSocket = this.tportServer.accept();
+        myftpserver tportThread = new myftpserver(tportSocket, true);
+        tportThread.start();
 
-			DataOutputStream dos=new DataOutputStream(this.s.getOutputStream());		//send message to the Client
-			DataInputStream dis=new DataInputStream(this.s.getInputStream());		//get input from the client
-			String command = "";
+        dos=new DataOutputStream(this.nportSocket.getOutputStream());		//send message to the Client
+  			dis=new DataInputStream(this.nportSocket.getInputStream());		//get input from the client
+  			String command = "";
 
-			while(message!="exit"){
-				System.out.println("server while loop");
-				command = dis.readUTF();
-				System.out.println("Command called: " +command);
-				if(command.equalsIgnoreCase(PWD_COMMAND)){
-					this.printWorkingDirectory(dos);
-				}
-				else if(command.contains(MKDIR_COMMAND) && command.substring(0,6).equalsIgnoreCase(MKDIR_COMMAND)){
-					this.makeDirectory(dos, command);
-				}
-				else if(command.contains(CD_COMMAND) && command.substring(0,3).equalsIgnoreCase(CD_COMMAND)){
-					this.changeDirectory(dos, command.substring(3));
-				}
-				else if(command.equalsIgnoreCase(LS_COMMAND)){
-					System.out.println("checking ls port is -> "+this.portType);
-					this.listSubdirectories(dos);
-				}
-				else if(command.contains(DELETE_COMMAND) && command.substring(0,7).equalsIgnoreCase(DELETE_COMMAND)){
-					this.deleteFile(dos, command.substring(7));
-				}
-				else if(command.contains(GET_COMMAND) && command.substring(0,4).equalsIgnoreCase(GET_COMMAND)){
-					int at_end = command.length() - 2;
-					if(command.substring(at_end).equals(T_PORT_CALL)){
-            Thread t = new tport_get_put(dos, dis, s, command.substring(0, at_end), current_dir);			// create a new thread object on tport
-            t.start();	    																// Invoking the start() method
-					}
-					else
-						this.sendFile(dos, dis, s, command.substring(4));
-				}
-				else if(command.contains(PUT_COMMAND) && command.substring(0,4).equalsIgnoreCase(PUT_COMMAND)){
-					this.receiveFile(dos, dis, s, command.substring(4));
-				}
-				//If terminate command is recieved (it can only be recieved on tport), We do terminate stuff
-				else if(command.contains(TERMINATE_COMMAND)){
-					System.out.println("Terminate command called "+this.portType);
-					System.out.println("Before sending reply");
-					//This is just a test message sent back to client. Will be modified later
-					dos.writeUTF(TERMINATE_SUCCESSFUL);
-					System.out.println("After sending reply");
-					//Setting isTerminated as true as an indication that terminate command has been called
-					this.isTerminated = true;
-					Thread.currentThread().sleep(10);
-				}
-				else if(command.equalsIgnoreCase(QUIT_COMMAND)){
-					dos.writeUTF(QUIT_MESSAGE);
-					//break;
-					System.out.println(WAITING_MSG);
-					this.s=this.server.accept();
-					System.out.println("Connected "+s);
-					dos=new DataOutputStream(this.s.getOutputStream());		//send message to the Client
-					dis=new DataInputStream(this.s.getInputStream());			//get input from the client
-				}
-				else{
-					dos.writeUTF(INVALID_CMD_MESSAGE);
-				}
-			}
+        while(message!="exit"){
+  				System.out.println("server while loop");
+  				command = this.dis.readUTF();
+  				System.out.println("Command called: " +command);
+  				if(command.equalsIgnoreCase(PWD_COMMAND)){
+  					this.printWorkingDirectory(dos);
+  				}
+  				else if(command.contains(MKDIR_COMMAND) && command.substring(0,6).equalsIgnoreCase(MKDIR_COMMAND)){
+  					this.makeDirectory(dos, command);
+  				}
+  				else if(command.contains(CD_COMMAND) && command.substring(0,3).equalsIgnoreCase(CD_COMMAND)){
+  					this.changeDirectory(dos, command.substring(3));
+  				}
+  				else if(command.equalsIgnoreCase(LS_COMMAND)){
+  					this.listSubdirectories(dos);
+  				}
+  				else if(command.contains(DELETE_COMMAND) && command.substring(0,7).equalsIgnoreCase(DELETE_COMMAND)){
+  					this.deleteFile(dos, command.substring(7));
+  				}
+  				else if(command.contains(GET_COMMAND) && command.substring(0,4).equalsIgnoreCase(GET_COMMAND)){
+  					if(command.charAt(command.length()-1) == '&'){
+              System.out.println("In get & loop");
+              myftpserver getThread = new myftpserver(nportSocket, dos, dis, command.split(" ")[1], current_dir, true);			// create a new thread object on tport
+              getThread.start();
+              dos.writeUTF(Long.toString(getThread.getId()));    																                                  // Invoking the start() method
+              boolean dummy = mapMethods(getThread.getId(), false, "set");
+  					}
+  					else{
+              this.sendFile(dos, dis, command.substring(4));
+            }
+  				}
+  				else if(command.contains(PUT_COMMAND) && command.substring(0,4).equalsIgnoreCase(PUT_COMMAND)){
+  					this.receiveFile(dos, dis, command.substring(4));
+  				}
+  				else if(command.equalsIgnoreCase(QUIT_COMMAND)){
+  					dos.writeUTF(QUIT_MESSAGE);
+  					//break;
+  					System.out.println(WAITING_MSG);
+  					//this.nportSocket = this.server.accept();
+  					System.out.println("Connected "+nportSocket);
+  					dos=new DataOutputStream(this.nportSocket.getOutputStream());		//send message to the Client
+  					dis=new DataInputStream(this.nportSocket.getInputStream());			//get input from the client
+  				}
+  				else{
+  					dos.writeUTF(INVALID_CMD_MESSAGE);
+  				}
+  			}
+      }
+      else if(this.threadContextTport){
+
+        String message = "Chat started!";
+        System.out.println("Connected tport "+this.tportSocket);
+        DataOutputStream dos=new DataOutputStream(this.tportSocket.getOutputStream());		//send message to the Client
+  			DataInputStream dis=new DataInputStream(this.tportSocket.getInputStream());		//get input from the client
+  			String command = "";
+
+        while(!message.equalsIgnoreCase("exit")){
+          command = dis.readUTF();
+  				System.out.println("Command called: " +command);
+          if(command.contains(TERMINATE_COMMAND)){
+            //Terminate here
+            boolean dummy = mapMethods(Long.parseLong(command.split(" ")[1]), true, "set");
+          }
+        }
+      }
+      else if(this.threadContextGet){
+        System.out.println("In get thread");
+        System.out.println("current directory: " +this.currentDirGet+"file get name "+this.fileNameGet);
+        File f=new File(this.currentDirGet+"/"+fileNameGet);
+        if(!f.exists())
+        {
+            System.out.println("File does not exists");
+            dos.writeUTF("File Not Found");
+						dos.writeUTF("operation Aborted");
+            return;
+        }
+        else
+        {
+            System.out.println("File exists yeyyyy!!!!!!!!");
+            System.out.println("dos is "+dos.size());
+            dos.writeUTF("found");
+            System.out.println("After writting");
+						if(dis.readUTF().compareTo("Cancel")==0){
+							dos.writeUTF("Opertion aborted");
+							return;
+						}
+            FileInputStream fin=new FileInputStream(f);
+            int ch = 0;
+            for(int i = 0; ch != -1; i++){
+              if(i%1000 == 0 && mapMethods(this.currentThread().getId(), false, "get")){
+                dos.writeUTF("Please delete the file requested");
+                ch = -1;
+                break;
+              }else{
+                ch=fin.read();
+                dos.writeUTF(String.valueOf(ch));
+              }
+            }
+            fin.close();
+            dos.writeUTF("File Received Successfully");
+        }
+      }
 			System.out.println("Server stopped running");
+
 		}catch(Exception e){
-			System.out.println("Port is "+this.portType);
+			//System.out.println("context is "+this.threadContext);
 			e.printStackTrace();
 		}
 	}
 	//------------------------------run() method ends-------------------------------------------------
-	//------------------main method-------------------
-	public static void main(String args[]) throws Exception{
-		try{
-					// This method is modified so that when this class is invoked, it will spawn off
-					// two threads listening on nport and tport simultaeously.
-					myftpserver nportServer = new myftpserver(Integer.valueOf(args[0]), N_PORT);
-					myftpserver tportServer = new myftpserver(Integer.valueOf(args[1]), T_PORT);
-					nportServer.start();
-					tportServer.start();
-
-		} catch(Exception e){
-			System.out.println(UNEXPECTED_ERROR+": "+e);
-		}
-	}
 }
 /**
 This class handles multiple client connections and spawns off new thread for each client
@@ -459,32 +442,43 @@ class ClientManager extends Thread{
 	public ServerSocket tportServer;
 	public int nportNumber;
 	public int tportNumber;
+  public static final String NPORT_CONTEXT = "nport_context";
+  public static final String UNEXPECTED_ERROR = "Unexpected error occured";
 
 	public ClientManager(int nportNumber, int tportNumber) {
 		this.nportNumber = nportNumber;
-		this.tportNumber = tportNumber
+		this.tportNumber = tportNumber;
 	}
 
-	public run() {
-		this.nportServer = new ServerSocket(nportNumber);
-		this.tportServer = new ServerSocket(tportNumber);
-		while(true) {
-			try {
-				Socket client = this.nportServer.accept();
-			} catch(Exception e) {
-				System.out.println("Error Connecting to the server")
-				e.printStackTrace();
-			}
-			tport_get_put mainThread = new tport_get_put(this.nportServer, this.tportServer, tportNumber);
-		}
+	public void run() {
+    try{
+      this.nportServer = new ServerSocket(nportNumber);
+  		this.tportServer = new ServerSocket(tportNumber);
+
+      while(true) {
+        Socket nportClientSocket = null;
+  			try {
+          System.out.println("Server will start to wait" + this.nportServer);
+  				nportClientSocket = this.nportServer.accept();
+  			} catch(Exception e) {
+  				System.out.println("Error Connecting to the server");
+  				e.printStackTrace();
+  			}
+        System.out.println("Server connected "+nportClientSocket);
+  			myftpserver mainThread = new myftpserver(nportClientSocket, this.tportServer, true);
+        mainThread.start();
+  		}
+    }catch(Exception e){
+      e.printStackTrace();
+    }
 	}
 	//------------------main method-------------------
 	public static void main(String args[]) throws Exception{
 		try{
 			// This method is modified so that when this class is invoked, it will spawn off
 		  // two threads listening on nport and tport simultaeously.
-			ClientManager server = new ClientManager(Integer.valueOf(args[0]), Integer.valueOf(args[0]));
-			nportServer.start();
+			ClientManager clientManager = new ClientManager(Integer.valueOf(args[0]), Integer.valueOf(args[1]));
+			clientManager.start();
 		} catch(Exception e){
 			System.out.println(UNEXPECTED_ERROR+": "+e);
 		}
