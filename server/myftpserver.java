@@ -64,7 +64,7 @@ class myftpserver extends Thread{
   public String fileNamePut = "";
   public String currentDirPut = "";
 
-  public Map<Long, Boolean> terminateMap= new HashMap<Long, Boolean>();
+  public static Map<Long, Boolean> terminateMap= new HashMap<Long, Boolean>();
 
 	//----------------------Constructor to instantiate myftpserver nport thread ------------------------------
 	myftpserver(Socket nportSocket, ServerSocket tportServer, boolean threadContextNport){
@@ -98,7 +98,7 @@ class myftpserver extends Thread{
         this.currentDirGet = current_dir;
       }
       else{
-        this.threadContextPut = isThreadContextGet;
+        this.threadContextPut = !isThreadContextGet;
         //this.dos_put = dos;
         //this.dis_put = dis;
         this.fileNamePut = fileName;
@@ -109,16 +109,16 @@ class myftpserver extends Thread{
     }
   }//------------------end of Constructor---------------------
   //-------------method to change terminateMap values-----------------
-  public synchronized boolean mapMethods(long threadId, boolean isTerminate, String operation){
+  public static synchronized boolean mapMethods(long threadId, boolean isTerminate, String operation){
     if(operation.equalsIgnoreCase("set")){
-      this.terminateMap.put(threadId, isTerminate);
+      terminateMap.put(threadId, isTerminate);
       return true;
     }
     else if(operation.equalsIgnoreCase("get")){
-      return this.terminateMap.get(threadId);
+      return terminateMap.get(threadId);
     }
     else if(operation.equalsIgnoreCase("remove")){
-      this.terminateMap.remove(threadId);
+      terminateMap.remove(threadId);
       return true;
     }
     return false;
