@@ -8,8 +8,8 @@ class myftp implements Runnable {
 	public static final String PUT_COMMAND = "put ";
 	public static final String UNEXPECTED_ERROR = "Unexpected error occured";
 	public static final String download_dir = System.getProperty("user.dir");
-	public static DataInputStream dis;
-	public static DataOutputStream dos;
+	public DataInputStream dis;
+	public DataOutputStream dos;
 	public static Scanner sc = new Scanner(System.in);
 
 	public static Socket s;
@@ -21,32 +21,46 @@ class myftp implements Runnable {
 	public static final String N_PORT = "nport";
 	public static final String T_PORT = "tport";
 	public static final String RUN_ON_NEW_THREAD = " &";
-	private static Thread t;
+
 	private String cmd;
 
+	public myftp(){
+		try{
+			dis = new DataInputStream(s.getInputStream());
+			dos = new DataOutputStream(s.getOutputStream());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
 	//----------------------Constructor to instantiate myftp child thread (Created to make client multi-threaded)-----------
 	public myftp(String command) {
-		this.cmd = command;
+		try{
+			this.cmd = command;
+			this.dis = new DataInputStream(s.getInputStream());
+			this.dos = new DataOutputStream(s.getOutputStream());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 
 	public void run() {
 		try {
 			if (cmd.contains(GET_COMMAND))
-				get(cmd, s);
+				this.get(cmd, s);
 			else
-				put(cmd, s);
+				this.put(cmd, s);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 
 	//---------------GET files-----------------
-	public static void get(String command, Socket s) {
+	public void get(String command, Socket s) {
 		try {
 
-			System.out.println("In get method"+dos.size());
+			System.out.println("In get method"+this.dos.size());
 			String fileName = command.substring(4);
-			String repFromServer = dis.readUTF();
+			String repFromServer = this.dis.readUTF();
 			System.out.println("Reply from server is---- "+repFromServer);
 			if (repFromServer.compareTo("File Not Found") == 0) {
 				System.out.println("File not found on Server ...");
@@ -60,7 +74,7 @@ class myftp implements Runnable {
 					System.out.print("File Already Exists. Want to OverWrite (Y/N) ?	");
 					String opt = sc.nextLine();
 					if (opt.compareTo("N") == 0) {
-						dos.writeUTF("Cancel");
+						this.dos.writeUTF("Cancel");
 						return;
 					}
 				}
@@ -70,15 +84,15 @@ class myftp implements Runnable {
 				String temp;
 				long lStartTime = System.currentTimeMillis();
 				do {
-					if (!Thread.interrupted()) {
-						fout.close();
-						f.delete(); //delete the incompletely transferred file.
-						return;
-					}
-					temp = dis.readUTF();
+					temp = this.dis.readUTF();
 					ch = Integer.parseInt(temp);
 					if (ch != -1) {
 						fout.write(ch);
+					}
+					if (Thread.interrupted()) {
+						fout.close();
+						f.delete(); //delete the incompletely transferred file.
+						return;
 					}
 				} while (ch != -1);
 				fout.close();
@@ -93,7 +107,7 @@ class myftp implements Runnable {
 	}
 
 	//---------------PUT files-----------------
-	public static void put(String command, Socket s) {
+	public void put(String command, Socket s) {
 		try {
 			String fileName = command.substring(4);
 			File f = new File(fileName);
@@ -129,8 +143,10 @@ class myftp implements Runnable {
 	public static void main(String args[]) {
 		try {
 			s = new Socket(args[0], Integer.valueOf(args[1]));
-			dis = new DataInputStream(s.getInputStream()); //get input from the server
-			dos = new DataOutputStream(s.getOutputStream()); //send message to the server
+		  Thread t = null;
+			myftp client = new myftp();
+			// dis = new DataInputStream(s.getInputStream()); //get input from the server
+			// dos = new DataOutputStream(s.getOutputStream()); //send message to the server
 
 			terminateSocket = new Socket(args[0], Integer.valueOf(args[2]));
 			dis_terminate = new DataInputStream(terminateSocket.getInputStream());
@@ -140,41 +156,46 @@ class myftp implements Runnable {
 			String msg = "G";
 
 			while (true) {
-				if (DEBUG)
-					System.out.println("In Main while loop");
+				if (DEBUG)	System.out.println("In Main while loop");
 				System.out.print("mytftp> ");
 				command = sc.nextLine();
-				dos.writeUTF(command);
+				client.dos.writeUTF(command);
 				if (command.contains(GET_COMMAND) && command.substring(0, 4).equalsIgnoreCase(GET_COMMAND)) {
 					int at_end = command.length() - 2;
 					if (command.substring(at_end).equals(RUN_ON_NEW_THREAD)) {
 						System.out.println("Starting new thread");
-						String msga = dis.readUTF();
+						String msga = client.dis.readUTF();
 						System.out.println("Reply from get is: " + msga);
 						t = new Thread(new myftp(command));
+						// t.setDaemon(true);
 						t.start();
+						command = null;
 					} else
-						get(command, s);
+						client.get(command, s);
 				} else if (command.contains(PUT_COMMAND) && command.substring(0, 4).equalsIgnoreCase(PUT_COMMAND)) {
 					File f = new File(command.substring(4));
 					if (!f.exists()) {
 						System.out.println("File Not Found on your Local machine!");
-						dos.writeUTF("operation Aborted");
+						client.dos.writeUTF("operation Aborted");
 						continue;
 					}
 					int at_end = command.length() - 2;
 					if (command.substring(at_end).equals(RUN_ON_NEW_THREAD)) {
 						t = new Thread(new myftp(command));
 						t.start();
+						command = null;
 					} else
-						put(command, s);
+						client.put(command, s);
 				} else if (command.contains(TERMINATE_COMMAND)) {
 					if (t.isAlive()) {
 						t.interrupt();
 					}
 				}
-				msg = dis.readUTF();
-				System.out.println("Reply: " + msg);
+
+				if (command != null) {
+					msg = client.dis.readUTF();
+					System.out.println("Reply: " + msg);
+				}
 
 				if (command.equalsIgnoreCase("quit")) {
 					System.exit(0);
