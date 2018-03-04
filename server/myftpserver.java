@@ -56,8 +56,8 @@ class myftpserver extends Thread{
 	//GET and PUT threads use this variables
   //public DataOutputStream dos_get;
   //public DataInputStream dis_get;
-  public String fileNameGet = "";
-  public String currentDirGet = "";
+  //public String fileNameGet = "";
+  //public String currentDirGet = "";
 
   public DataOutputStream dos_put;
   public DataInputStream dis_put;
@@ -65,57 +65,47 @@ class myftpserver extends Thread{
   public String currentDirPut = "";
 
   public static Map<Long, Boolean> terminateMap= new HashMap<Long, Boolean>();
+	public static long commandId=0;
+	public static boolean isFileTransferred;
+
+	public synchronized boolean getIsFileTransferred(){
+		return this.isFileTransferred;
+	}
+	public synchronized void setIsFileTransferred(boolean b){
+		this.isFileTransferred = b;
+	}
 
 	//----------------------Constructor to instantiate myftpserver nport thread ------------------------------
-	myftpserver(Socket nportSocket, ServerSocket tportServer, boolean threadContextNport){
+	myftpserver(Socket portSocket, boolean isThreadContextNport){
 		try{
-      System.out.println("In nport constructor");
-      this.threadContextNport = threadContextNport;
-			this.nportSocket = nportSocket;
-      this.tportServer = tportServer;
+			if(isThreadContextNport){
+				System.out.println("In nport constructor");
+	      this.threadContextNport = isThreadContextNport;
+				this.nportSocket = portSocket;
+			}else{
+				System.out.println("In tport constructor");
+	      this.threadContextTport = isThreadContextNport;
+	      this.tportSocket = portSocket;
+			}
 		}catch(Exception e){
 			e.printStackTrace();
 		}
 	}//------------------end of Constructor---------------------
-  //----------------------Constructor to instantiate myftpserver tport thread ----------------------------------
-	myftpserver(Socket tportSocket, boolean threadContextTport){
-		try{
-      this.threadContextTport = threadContextTport;
-      this.tportSocket = tportSocket;
-		}catch(Exception e){
-			e.printStackTrace();
-		}
-	}//------------------end of Constructor---------------------
-  //----------------------Constructor to instantiate myftpserver get thread ----------------------------------
-  myftpserver(Socket nportSocket, DataOutputStream dos, DataInputStream dis, String fileName, String current_dir, boolean isThreadContextGet){
-    try{
-      if(isThreadContextGet){
-        this.nportSocket = nportSocket;
-        this.threadContextGet = isThreadContextGet;
-        //this.dos_get = dos;
-        //this.dis_get = dis;
-        this.fileNameGet = fileName;
-        this.currentDirGet = current_dir;
-      }
-      else{
-        this.threadContextPut = !isThreadContextGet;
-        //this.dos_put = dos;
-        //this.dis_put = dis;
-        this.fileNamePut = fileName;
-        this.currentDirPut = current_dir;
-      }
-    }catch(Exception e){
-      e.printStackTrace();
-    }
-  }//------------------end of Constructor---------------------
   //-------------method to change terminateMap values-----------------
-  public static synchronized boolean mapMethods(long threadId, boolean isTerminate, String operation){
+  public synchronized boolean mapMethods(long threadId, boolean isTerminate, String operation){
     if(operation.equalsIgnoreCase("set")){
-      terminateMap.put(threadId, isTerminate);
+      terminateMap.put(this.commandId, isTerminate);
+			this.commandId++;
       return true;
     }
     else if(operation.equalsIgnoreCase("get")){
-      return terminateMap.get(threadId);
+			Boolean b = this.terminateMap.get(threadId);
+			if(b == null){
+				b = false;
+			}else{
+				b = true;
+			}
+      return b;
     }
     else if(operation.equalsIgnoreCase("remove")){
       terminateMap.remove(threadId);
@@ -123,6 +113,10 @@ class myftpserver extends Thread{
     }
     return false;
   }
+	//Method to return command Id
+	public synchronized long getCommandId(){
+		return this.commandId;
+	}
 	//------------------printWorkingDirectory in correspondence to the pwd command from client-------------------
 	public static void printWorkingDirectory(DataOutputStream dos) throws Exception{
 		try{
@@ -228,32 +222,49 @@ class myftpserver extends Thread{
 	}//------------------end of deleteFile()-------------------
 
 //------------------sendFile in correspondence to the get command from client-------------------
-public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName){
+public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName, boolean isThread, long currCommandId){
 		try{
         File f=new File(current_dir+"/"+fileName);
+				System.out.println("dir is---"+current_dir+" filename is "+fileName);
         if(!f.exists())
         {
+					System.out.println("File not found");
             dos.writeUTF("File Not Found");
-						dos.writeUTF("operation Aborted");
+						//dos.writeUTF("operation Aborted");
             return;
         }
         else
         {
             dos.writeUTF("found");
-						if(dis.readUTF().compareTo("Cancel")==0){
-							dos.writeUTF("Opertion aborted");
-							return;
-						}
+						// if(dis.readUTF().compareTo("Cancel")==0){
+						// 	dos.writeUTF("Opertion aborted");
+						// 	return;
+						// }
             FileInputStream fin=new FileInputStream(f);
-            int ch;
-            do
-            {
-                ch=fin.read();
-                dos.writeUTF(String.valueOf(ch));
-            }
-            while(ch!=-1);
+						if(isThread){
+							int ch = 0;
+              for(int i = 0; ch != -1; i++){
+                if(i%1000 == 0 && mapMethods(currCommandId, false, "get")){
+                  dos.writeUTF("delete");
+                  ch = -1;
+                  break;
+                }else{
+                  ch=fin.read();
+                  dos.writeUTF(String.valueOf(ch));
+                }
+              }
+						}else{
+							int ch;
+	            do
+	            {
+	                ch=fin.read();
+	                dos.writeUTF(String.valueOf(ch));
+	            }
+	            while(ch!=-1);
+						}
             fin.close();
-            dos.writeUTF("File Received Successfully");
+			      this.setIsFileTransferred(true);
+						dos.writeUTF("File Received Successfully");
         }
 		}catch(Exception e){
 			e.printStackTrace();
@@ -261,7 +272,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName)
 	}//------------------end of sendFile()-------------------
 
 //------------------receiveFile in correspondence to the put command from client-------------------
- public void receiveFile(DataOutputStream dos, DataInputStream dis, String fileName){
+ public void receiveFile(DataOutputStream dos, DataInputStream dis, String fileName, boolean isThread, long currCommandId){
 	 try{
 		 File f=new File(current_dir+"/"+fileName);
 
@@ -283,18 +294,37 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName)
 				dos.writeUTF("Sending...");
 
 			FileOutputStream fout=new FileOutputStream(f);
-			int ch;
+
 			String temp;
 			long lStartTime = System.currentTimeMillis();
-			do
-			{
-					temp=dis.readUTF();
-					ch=Integer.parseInt(temp);
-					if(ch!=-1)
-					{
-							fout.write(ch);
+			if(isThread){
+				int ch = 0;
+				for(int i = 0; ch != -1; i++){
+					if(i%1000 == 0 && mapMethods(currCommandId, false, "get")){
+						dos.writeUTF("delete");
+						ch = -1;
+						break;
+					}else{
+						temp=dis.readUTF();
+						ch=Integer.parseInt(temp);
+						if(ch!=-1)
+						{
+								fout.write(ch);
+						}
 					}
-			}while(ch!=-1);
+				}
+			}else{
+				int ch;
+				do
+				{
+						temp=dis.readUTF();
+						ch=Integer.parseInt(temp);
+						if(ch!=-1)
+						{
+								fout.write(ch);
+						}
+				}while(ch!=-1);
+			}
 			fout.close();
 			long lEndTime = System.currentTimeMillis();
 			long output = lEndTime - lStartTime;
@@ -314,49 +344,56 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName)
         System.out.println("In nport loop ");
         String message = "Chat started!";
   			System.out.println("Connected nport "+this.nportSocket);
-        Socket tportSocket = this.tportServer.accept();
-        myftpserver tportThread = new myftpserver(tportSocket, true);
-        tportThread.start();
-
         dos=new DataOutputStream(this.nportSocket.getOutputStream());		//send message to the Client
   			dis=new DataInputStream(this.nportSocket.getInputStream());		//get input from the client
   			String command = "";
 
         while(message!="exit"){
   				System.out.println("server while loop");
-  				command = this.dis.readUTF();
+					command = this.dis.readUTF();
   				System.out.println("Command called: " +command);
-  				if(command.equalsIgnoreCase(PWD_COMMAND)){
+  				if(command != null && command.equalsIgnoreCase(PWD_COMMAND)){
   					this.printWorkingDirectory(dos);
   				}
-  				else if(command.contains(MKDIR_COMMAND) && command.substring(0,6).equalsIgnoreCase(MKDIR_COMMAND)){
+  				else if(command != null && command.contains(MKDIR_COMMAND) && command.substring(0,6).equalsIgnoreCase(MKDIR_COMMAND)){
   					this.makeDirectory(dos, command);
   				}
-  				else if(command.contains(CD_COMMAND) && command.substring(0,3).equalsIgnoreCase(CD_COMMAND)){
+  				else if(command != null && command.contains(CD_COMMAND) && command.substring(0,3).equalsIgnoreCase(CD_COMMAND)){
   					this.changeDirectory(dos, command.substring(3));
   				}
-  				else if(command.equalsIgnoreCase(LS_COMMAND)){
+  				else if(command != null && command.equalsIgnoreCase(LS_COMMAND)){
   					this.listSubdirectories(dos);
   				}
-  				else if(command.contains(DELETE_COMMAND) && command.substring(0,7).equalsIgnoreCase(DELETE_COMMAND)){
+  				else if(command != null && command.contains(DELETE_COMMAND) && command.substring(0,7).equalsIgnoreCase(DELETE_COMMAND)){
   					this.deleteFile(dos, command.substring(7));
   				}
-  				else if(command.contains(GET_COMMAND) && command.substring(0,4).equalsIgnoreCase(GET_COMMAND)){
+  				else if(command != null && command.contains(GET_COMMAND) && command.substring(0,4).equalsIgnoreCase(GET_COMMAND)){
   					if(command.charAt(command.length()-1) == '&'){
               System.out.println("In get & loop");
-              myftpserver getThread = new myftpserver(nportSocket, dos, dis, command.split(" ")[1], current_dir, true);			// create a new thread object on tport
-              getThread.start();
-              dos.writeUTF(Long.toString(getThread.getId()));    																                                  // Invoking the start() method
-              boolean dummy = mapMethods(getThread.getId(), false, "set");
+              dos.writeUTF(Long.toString(this.getCommandId()));    																                                  // Invoking the start() method
+              boolean dummy = mapMethods(this.getCommandId(), false, "set");
+							this.setIsFileTransferred(false);
+							this.sendFile(dos, dis, command.split(" ")[1], true, this.getCommandId());
+							do{
+
+							}
+							while(!this.getIsFileTransferred());
   					}
   					else{
-              this.sendFile(dos, dis, command.substring(4));
+              this.sendFile(dos, dis, command.substring(4), false, this.getCommandId());
             }
   				}
-  				else if(command.contains(PUT_COMMAND) && command.substring(0,4).equalsIgnoreCase(PUT_COMMAND)){
-  					this.receiveFile(dos, dis, command.substring(4));
+  				else if(command != null && command.contains(PUT_COMMAND) && command.substring(0,4).equalsIgnoreCase(PUT_COMMAND)){
+						if(command.charAt(command.length()-1) == '&'){
+              System.out.println("In put & loop");
+              dos.writeUTF(Long.toString(this.getCommandId()));    																                                  // Invoking the start() method
+              boolean dummy = mapMethods(this.getCommandId(), false, "set");
+							this.receiveFile(dos, dis, command.substring(4), true, this.getCommandId());
+  					}else{
+							this.receiveFile(dos, dis, command.substring(4), false, this.getCommandId());
+						}
   				}
-  				else if(command.equalsIgnoreCase(QUIT_COMMAND)){
+  				else if(command != null && command.equalsIgnoreCase(QUIT_COMMAND)){
   					dos.writeUTF(QUIT_MESSAGE);
   					//break;
   					System.out.println(WAITING_MSG);
@@ -371,7 +408,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName)
   			}
       }
       else if(this.threadContextTport){
-
+				System.out.println("In tport loop ");
         String message = "Chat started!";
         System.out.println("Connected tport "+this.tportSocket);
         DataOutputStream dos=new DataOutputStream(this.tportSocket.getOutputStream());		//send message to the Client
@@ -385,43 +422,6 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName)
             //Terminate here
             boolean dummy = mapMethods(Long.parseLong(command.split(" ")[1]), true, "set");
           }
-        }
-      }
-      else if(this.threadContextGet){
-        System.out.println("In get thread");
-        System.out.println("current directory: " +this.currentDirGet+"file get name "+this.fileNameGet);
-        File f=new File(this.currentDirGet+"/"+fileNameGet);
-        if(!f.exists())
-        {
-            System.out.println("File does not exists");
-            dos.writeUTF("File Not Found");
-						dos.writeUTF("operation Aborted");
-            return;
-        }
-        else
-        {
-            System.out.println("File exists yeyyyy!!!!!!!!");
-            System.out.println("dos is "+dos.size());
-            dos.writeUTF("found");
-            System.out.println("After writting");
-						if(dis.readUTF().compareTo("Cancel")==0){
-							dos.writeUTF("Opertion aborted");
-							return;
-						}
-            FileInputStream fin=new FileInputStream(f);
-            int ch = 0;
-            for(int i = 0; ch != -1; i++){
-              if(i%1000 == 0 && mapMethods(this.currentThread().getId(), false, "get")){
-                dos.writeUTF("Please delete the file requested");
-                ch = -1;
-                break;
-              }else{
-                ch=fin.read();
-                dos.writeUTF(String.valueOf(ch));
-              }
-            }
-            fin.close();
-            dos.writeUTF("File Received Successfully");
         }
       }
 			System.out.println("Server stopped running");
@@ -457,16 +457,20 @@ class ClientManager extends Thread{
 
       while(true) {
         Socket nportClientSocket = null;
+				Socket tportClientSocket = null;
   			try {
           System.out.println("Server will start to wait" + this.nportServer);
   				nportClientSocket = this.nportServer.accept();
+					tportClientSocket = this.tportServer.accept();
   			} catch(Exception e) {
   				System.out.println("Error Connecting to the server");
   				e.printStackTrace();
   			}
         System.out.println("Server connected "+nportClientSocket);
-  			myftpserver mainThread = new myftpserver(nportClientSocket, this.tportServer, true);
+  			myftpserver mainThread = new myftpserver(nportClientSocket, true);
+				myftpserver tportThread = new myftpserver(nportClientSocket, false);
         mainThread.start();
+				tportThread.start();
   		}
     }catch(Exception e){
       e.printStackTrace();
