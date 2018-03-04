@@ -230,7 +230,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
         {
 					System.out.println("File not found");
             dos.writeUTF("File Not Found");
-						//dos.writeUTF("operation Aborted");
+						dos.writeUTF("operation Aborted");
             return;
         }
         else
@@ -251,6 +251,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 									this.setIsFileTransferred(true);
 									fin.close();
 									dos.flush();
+									dos.writeUTF("File transfer terminated");
                   return;
                 }else{
 									//System.out.println("Not marked for deletion");
@@ -269,7 +270,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 						}
             fin.close();
 						this.setIsFileTransferred(true);
-						//dos.writeUTF("File Received Successfully");
+						dos.writeUTF("File Received Successfully");
         }
 		}catch(Exception e){
 			e.printStackTrace();

@@ -3,7 +3,7 @@ import java.io.*;
 import java.util.*;
 
 class myftp implements Runnable {
-	public static final Boolean DEBUG = true;
+	public static final Boolean DEBUG = false;
 	public static final String GET_COMMAND = "get ";
 	public static final String PUT_COMMAND = "put ";
 	public static final String UNEXPECTED_ERROR = "Unexpected error occured";
@@ -22,6 +22,7 @@ class myftp implements Runnable {
 	public static final String T_PORT = "tport";
 	public static final String RUN_ON_NEW_THREAD = " &";
 
+	public static Thread t = null;
 	private String cmd;
 
 	public static boolean isFileDeleted = false;
@@ -55,25 +56,27 @@ class myftp implements Runnable {
 	public void run() {
 		try {
 			if (cmd.contains(GET_COMMAND)){
-				System.out.println("I am in get command");
-				this.get(cmd, s);
+				if(DEBUG)	System.out.println("I am in thread->get command");
+				this.get(cmd.split(" ")[1], s);
+				System.out.print("Reply: "+this.dis.readUTF()+"\nmyftp> ");
 			}
 			else{
 				this.put(cmd, s);
 			}
+			t=null;
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 
 	//---------------GET files-----------------
-	public void get(String command, Socket s) {
+	public void get(String fileName, Socket s) {
 		try {
 
-			System.out.println("In get method"+this.dos.size());
-			String fileName = command.substring(4);
+			if(DEBUG) System.out.println("In get method"+this.dos.size());
+			// String fileName = fname;
 			String repFromServer = this.dis.readUTF();
-			System.out.println("Reply from server is---- "+repFromServer);
+			if(DEBUG) System.out.println("Reply from server is---- "+repFromServer);
 			if (repFromServer.compareTo("File Not Found") == 0) {
 				System.out.println("File not found on Server ...");
 				return;
@@ -98,7 +101,7 @@ class myftp implements Runnable {
 				do {
 					temp = this.dis.readUTF();
 					if (temp.equalsIgnoreCase("delete")){
-						System.out.println("In deletin");
+						if(DEBUG) System.out.println("In deleting");
 						fout.close();
 						f.delete(); //delete the incompletely transferred file.
 						this.setIsFileDeleted(true);
@@ -158,8 +161,9 @@ class myftp implements Runnable {
 	public static void main(String args[]) {
 		try {
 			s = new Socket(args[0], Integer.valueOf(args[1]));
-		  Thread t = null;
+		  // Thread t = null;
 			myftp client = new myftp();
+			String tID = "";
 			// dis = new DataInputStream(s.getInputStream()); //get input from the server
 			// dos = new DataOutputStream(s.getOutputStream()); //send message to the server
 
@@ -172,25 +176,25 @@ class myftp implements Runnable {
 
 			while (true) {
 				if (DEBUG)	System.out.println("In Main while loop");
-				System.out.print("mytftp> ");
+				System.out.print("myftp> ");
 				command = sc.nextLine();
 
-				if (command.contains(GET_COMMAND) && command.substring(0, 4).equalsIgnoreCase(GET_COMMAND)) {
+				if (t==null && command.contains(GET_COMMAND) && command.substring(0, 4).equalsIgnoreCase(GET_COMMAND)) {
 					client.dos.writeUTF(command);
 					int at_end = command.length() - 2;
 					if (command.substring(at_end).equals(RUN_ON_NEW_THREAD)) {
 						System.out.println("Starting new thread");
-						String msga = client.dis.readUTF();
-						System.out.println("Reply from get is: " + msga);
+						tID = client.dis.readUTF();
+						System.out.println("Command ID: " + tID);
 						t = new Thread(new myftp(command));
 						// t.setDaemon(true);
 						t.start();
 						command = null;
 					} else
-						client.get(command, s);
-				} else if (command.contains(PUT_COMMAND) && command.substring(0, 4).equalsIgnoreCase(PUT_COMMAND)) {
+						client.get(command.substring(4), s);
+				} else if (t==null && command.contains(PUT_COMMAND) && command.substring(0, 4).equalsIgnoreCase(PUT_COMMAND)) {
 					client.dos.writeUTF(command);
-					File f = new File(command.substring(4));
+					File f = new File(command.split(" ")[1]);
 					if (!f.exists()) {
 						System.out.println("File Not Found on your Local machine!");
 						client.dos.writeUTF("operation Aborted");
@@ -204,20 +208,27 @@ class myftp implements Runnable {
 					} else
 						client.put(command, s);
 				} else if (command.contains(TERMINATE_COMMAND)) {
+					if(t == null){
+						System.out.println("No ongoing get / put command to terminate!");
+						continue;
+					}
+
 					dos_terminate.writeUTF(command);
 					command = null;
-					System.out.print("Okay, Terminating...");
+					System.out.print("Okay, please wait! Terminating...");
 					do{
 
 					}while(!client.getIsFileDeleted());
-					System.out.print("Terminated!");
+					System.out.println("Terminated!");
 					client.setIsFileDeleted(false);
+					t = null;
 					//t.interrupt();
-				}else{
+				}else if (t==null){
+					if(DEBUG)	System.out.println("Sending to server");
 					client.dos.writeUTF(command);
 				}
 
-				if (command != null) {
+				if (t==null && command != null) {
 					msg = client.dis.readUTF();
 					System.out.println("Reply: " + msg);
 				}
