@@ -8,8 +8,8 @@ class myftp implements Runnable {
 	public static final String PUT_COMMAND = "put ";
 	public static final String UNEXPECTED_ERROR = "Unexpected error occured";
 	public static final String download_dir = System.getProperty("user.dir");
-	public DataInputStream dis;
-	public DataOutputStream dos;
+	public static DataInputStream dis;
+	public static DataOutputStream dos;
 	public static Scanner sc = new Scanner(System.in);
 
 	public static Socket s;
@@ -36,8 +36,8 @@ class myftp implements Runnable {
 	public myftp(String command) {
 		try{
 			this.cmd = command;
-			this.dis = new DataInputStream(s.getInputStream());
-			this.dos = new DataOutputStream(s.getOutputStream());
+			//this.dis = new DataInputStream(s.getInputStream());
+			//this.dos = new DataOutputStream(s.getOutputStream());
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -69,16 +69,16 @@ class myftp implements Runnable {
 				System.out.println("Receiving File ...");
 				File f = new File(download_dir + "/" + fileName);
 				// File f=new File(fileName);
-				if (f.exists()) {
-					// String Option;
-					System.out.print("File Already Exists. Want to OverWrite (Y/N) ?	");
-					String opt = sc.nextLine();
-					if (opt.compareTo("N") == 0) {
-						this.dos.writeUTF("Cancel");
-						return;
-					}
-				}
-				dos.writeUTF("Continue");
+				// if (f.exists()) {
+				// 	// String Option;
+				// 	System.out.print("File Already Exists. Want to OverWrite (Y/N) ?	");
+				// 	String opt = sc.nextLine();
+				// 	if (opt.compareTo("N") == 0) {
+				// 		this.dos.writeUTF("Cancel");
+				// 		return;
+				// 	}
+				// }
+				// dos.writeUTF("Continue");
 				FileOutputStream fout = new FileOutputStream(f);
 				int ch;
 				String temp;
@@ -197,12 +197,13 @@ class myftp implements Runnable {
 					System.out.println("Reply: " + msg);
 				}
 
-				if (command.equalsIgnoreCase("quit")) {
+				if (command != null && command.equalsIgnoreCase("quit")) {
 					System.exit(0);
 					//break;
 				}
 			}
 		} catch (Exception e) {
+			e.printStackTrace();
 			System.out.println(UNEXPECTED_ERROR + ": " + e);
 		}
 	}
