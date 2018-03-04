@@ -66,7 +66,7 @@ class myftpserver extends Thread{
 
   public static Map<Long, Boolean> terminateMap= new HashMap<Long, Boolean>();
 	public static long commandId=0;
-	public static boolean isFileTransferred;
+	public boolean isFileTransferred;
 
 	public synchronized boolean getIsFileTransferred(){
 		return this.isFileTransferred;
@@ -84,7 +84,7 @@ class myftpserver extends Thread{
 				this.nportSocket = portSocket;
 			}else{
 				System.out.println("In tport constructor");
-	      this.threadContextTport = isThreadContextNport;
+	      this.threadContextTport = !isThreadContextNport;
 	      this.tportSocket = portSocket;
 			}
 		}catch(Exception e){
@@ -245,10 +245,15 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 							int ch = 0;
               for(int i = 0; ch != -1; i++){
                 if(i%1000 == 0 && mapMethods(currCommandId, false, "get")){
+									System.out.println("Marked for deletion");
                   dos.writeUTF("delete");
                   ch = -1;
-                  break;
+									this.setIsFileTransferred(true);
+									fin.close();
+									dos.flush();
+                  return;
                 }else{
+									//System.out.println("Not marked for deletion");
                   ch=fin.read();
                   dos.writeUTF(String.valueOf(ch));
                 }
@@ -263,8 +268,8 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 	            while(ch!=-1);
 						}
             fin.close();
-			      this.setIsFileTransferred(true);
-						dos.writeUTF("File Received Successfully");
+						this.setIsFileTransferred(true);
+						//dos.writeUTF("File Received Successfully");
         }
 		}catch(Exception e){
 			e.printStackTrace();
@@ -415,12 +420,14 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
   			DataInputStream dis=new DataInputStream(this.tportSocket.getInputStream());		//get input from the client
   			String command = "";
 
-        while(!message.equalsIgnoreCase("exit")){
+        while(message!="exit"){
           command = dis.readUTF();
-  				System.out.println("Command called: " +command);
+  				System.out.println("tport Command called: " +command);
           if(command.contains(TERMINATE_COMMAND)){
             //Terminate here
+						System.out.println("terminate if loop");
             boolean dummy = mapMethods(Long.parseLong(command.split(" ")[1]), true, "set");
+						dos.writeUTF("Command Terminated");
           }
         }
       }
@@ -466,9 +473,10 @@ class ClientManager extends Thread{
   				System.out.println("Error Connecting to the server");
   				e.printStackTrace();
   			}
-        System.out.println("Server connected "+nportClientSocket);
+        System.out.println("Server connected nport"+nportClientSocket);
+				System.out.println("Server connected tport"+tportClientSocket);
   			myftpserver mainThread = new myftpserver(nportClientSocket, true);
-				myftpserver tportThread = new myftpserver(nportClientSocket, false);
+				myftpserver tportThread = new myftpserver(tportClientSocket, false);
         mainThread.start();
 				tportThread.start();
   		}

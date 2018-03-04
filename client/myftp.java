@@ -8,8 +8,8 @@ class myftp implements Runnable {
 	public static final String PUT_COMMAND = "put ";
 	public static final String UNEXPECTED_ERROR = "Unexpected error occured";
 	public static final String download_dir = System.getProperty("user.dir");
-	public static DataInputStream dis;
-	public static DataOutputStream dos;
+	public DataInputStream dis;
+	public DataOutputStream dos;
 	public static Scanner sc = new Scanner(System.in);
 
 	public static Socket s;
@@ -24,6 +24,15 @@ class myftp implements Runnable {
 
 	private String cmd;
 
+	public static boolean isFileDeleted = false;
+
+	public synchronized boolean getIsFileDeleted(){
+		return this.isFileDeleted;
+	}
+	public synchronized void setIsFileDeleted(boolean b){
+		this.isFileDeleted = b;
+	}
+
 	public myftp(){
 		try{
 			dis = new DataInputStream(s.getInputStream());
@@ -36,8 +45,8 @@ class myftp implements Runnable {
 	public myftp(String command) {
 		try{
 			this.cmd = command;
-			//this.dis = new DataInputStream(s.getInputStream());
-			//this.dos = new DataOutputStream(s.getOutputStream());
+			this.dis = new DataInputStream(s.getInputStream());
+			this.dos = new DataOutputStream(s.getOutputStream());
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -45,10 +54,13 @@ class myftp implements Runnable {
 
 	public void run() {
 		try {
-			if (cmd.contains(GET_COMMAND))
+			if (cmd.contains(GET_COMMAND)){
+				System.out.println("I am in get command");
 				this.get(cmd, s);
-			else
+			}
+			else{
 				this.put(cmd, s);
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -85,14 +97,17 @@ class myftp implements Runnable {
 				long lStartTime = System.currentTimeMillis();
 				do {
 					temp = this.dis.readUTF();
+					if (temp.equalsIgnoreCase("delete")){
+						System.out.println("In deletin");
+						fout.close();
+						f.delete(); //delete the incompletely transferred file.
+						this.setIsFileDeleted(true);
+						return;
+					}
+					//System.out.println("temp is "+temp);
 					ch = Integer.parseInt(temp);
 					if (ch != -1) {
 						fout.write(ch);
-					}
-					if (Thread.interrupted()) {
-						fout.close();
-						f.delete(); //delete the incompletely transferred file.
-						return;
 					}
 				} while (ch != -1);
 				fout.close();
@@ -159,8 +174,9 @@ class myftp implements Runnable {
 				if (DEBUG)	System.out.println("In Main while loop");
 				System.out.print("mytftp> ");
 				command = sc.nextLine();
-				client.dos.writeUTF(command);
+
 				if (command.contains(GET_COMMAND) && command.substring(0, 4).equalsIgnoreCase(GET_COMMAND)) {
+					client.dos.writeUTF(command);
 					int at_end = command.length() - 2;
 					if (command.substring(at_end).equals(RUN_ON_NEW_THREAD)) {
 						System.out.println("Starting new thread");
@@ -173,6 +189,7 @@ class myftp implements Runnable {
 					} else
 						client.get(command, s);
 				} else if (command.contains(PUT_COMMAND) && command.substring(0, 4).equalsIgnoreCase(PUT_COMMAND)) {
+					client.dos.writeUTF(command);
 					File f = new File(command.substring(4));
 					if (!f.exists()) {
 						System.out.println("File Not Found on your Local machine!");
@@ -187,9 +204,17 @@ class myftp implements Runnable {
 					} else
 						client.put(command, s);
 				} else if (command.contains(TERMINATE_COMMAND)) {
-					if (t.isAlive()) {
-						t.interrupt();
-					}
+					dos_terminate.writeUTF(command);
+					command = null;
+					System.out.print("Okay, Terminating...");
+					do{
+
+					}while(!client.getIsFileDeleted());
+					System.out.print("Terminated!");
+					client.setIsFileDeleted(false);
+					//t.interrupt();
+				}else{
+					client.dos.writeUTF(command);
 				}
 
 				if (command != null) {
