@@ -3,8 +3,8 @@ import java.io.*;
 import java.util.*;
 
 class myftpserver extends Thread{
-	public static final String root_dir = System.getProperty("user.dir");
-	public static String current_dir = root_dir;
+	public final String root_dir = System.getProperty("user.dir");
+	public String current_dir = root_dir;
 
 	public static final String PWD_COMMAND = "pwd";
 
@@ -51,8 +51,8 @@ class myftpserver extends Thread{
   public boolean threadContextGet = false;
   public boolean threadContextPut = false;
 
-  public static DataOutputStream dos;
-  public static DataInputStream dis;
+  public DataOutputStream dos;
+  public DataInputStream dis;
 	//GET and PUT threads use this variables
   //public DataOutputStream dos_get;
   //public DataInputStream dis_get;
@@ -118,7 +118,7 @@ class myftpserver extends Thread{
 		return this.commandId;
 	}
 	//------------------printWorkingDirectory in correspondence to the pwd command from client-------------------
-	public static void printWorkingDirectory(DataOutputStream dos) throws Exception{
+	public void printWorkingDirectory(DataOutputStream dos) throws Exception{
 		try{
 				dos.writeUTF(current_dir);
 		}catch(Exception e){
@@ -127,7 +127,7 @@ class myftpserver extends Thread{
 	}//------------------end of printWorkingDirectory()-------------------
 
 	//------------------makeDirectory in correspondence to the mkdir command from client-------------------
-	public static void makeDirectory(DataOutputStream dos, String dir_name) throws Exception{
+	public void makeDirectory(DataOutputStream dos, String dir_name) throws Exception{
 		try{
 			File dir = new File(current_dir.concat("/").concat(dir_name.substring(6)));
 			dir.mkdirs();
@@ -138,7 +138,7 @@ class myftpserver extends Thread{
 	}//------------------end of makeDirectory()-------------------
 
 	//------------------changeDirectory in correspondence to the cd command from client-------------------
-	public static void changeDirectory(DataOutputStream dos, String dir) throws Exception{
+	public void changeDirectory(DataOutputStream dos, String dir) throws Exception{
 		try{
 			if(!dir.equalsIgnoreCase(CD_BACK_COMMAND)){
 				if(dir.startsWith("/")){
@@ -180,7 +180,7 @@ class myftpserver extends Thread{
 	}//------------------end of changeDirectory()-------------------
 
 	//------------------listSubdirectories in correspondence to the ls command from client-------------------
-	public static void listSubdirectories(DataOutputStream dos) throws Exception{
+	public void listSubdirectories(DataOutputStream dos) throws Exception{
 		try{
 			File[] fList = new File(current_dir).listFiles();
 			if(fList != null && fList.length == 0){
@@ -198,7 +198,7 @@ class myftpserver extends Thread{
 	}//------------------end of listSubdirectories()-------------------
 
 	//------------------delete file on the server-------------------
-	public static void deleteFile(DataOutputStream dos, String fileName) throws Exception{
+	public void deleteFile(DataOutputStream dos, String fileName) throws Exception{
 		try{
 			if(fileName.startsWith("/")){
 				System.out.println("file path is: "+fileName);
@@ -230,6 +230,10 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
         {
 					System.out.println("File not found");
             dos.writeUTF("File Not Found");
+						if(isThread){
+							this.setIsFileTransferred(true);
+							return;
+						}
 						dos.writeUTF("operation Aborted");
             return;
         }
@@ -282,22 +286,22 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 	 try{
 		 File f=new File(current_dir+"/"+fileName);
 
-		 if(dis.readUTF().compareTo("operation Aborted")==0){
-			 // dos.writeUTF("operation Aborted");
-			 return;
-		 }
+		 // if(dis.readUTF().compareTo("operation Aborted")==0){
+			//  // dos.writeUTF("operation Aborted");
+			//  return;
+		 // }
 
-		 	if(f.exists()){
-			 	dos.writeUTF("File already exists in Server");
-				String opt = dis.readUTF();
-				if(opt.compareTo("N")==0){
-					System.out.println("Not overwritten");
-					dos.writeUTF("Aborted operation");
-					return;
-				}
-		 	}
-			else
-				dos.writeUTF("Sending...");
+		 	// if(f.exists()){
+			//  	dos.writeUTF("File already exists in Server");
+			// 	String opt = dis.readUTF();
+			// 	if(opt.compareTo("N")==0){
+			// 		System.out.println("Not overwritten");
+			// 		dos.writeUTF("Aborted operation");
+			// 		return;
+			// 	}
+		 	// }
+			// else
+			//dos.writeUTF("Sending...");
 
 			FileOutputStream fout=new FileOutputStream(f);
 
@@ -306,12 +310,17 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 			if(isThread){
 				int ch = 0;
 				for(int i = 0; ch != -1; i++){
-					if(i%1000 == 0 && mapMethods(currCommandId, false, "get")){
-						dos.writeUTF("delete");
+					temp=dis.readUTF();
+					if(temp.equals("delete")){		//(i%1000 == 0 && mapMethods(currCommandId, false, "get")) ||
+						// dos.writeUTF("delete");
 						ch = -1;
-						break;
+						this.setIsFileTransferred(true);
+						fout.close();
+						dos.flush();
+						f.delete();
+						dos.writeUTF("File transfer terminated");
+						return;
 					}else{
-						temp=dis.readUTF();
 						ch=Integer.parseInt(temp);
 						if(ch!=-1)
 						{
@@ -332,6 +341,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 				}while(ch!=-1);
 			}
 			fout.close();
+			this.setIsFileTransferred(true);
 			long lEndTime = System.currentTimeMillis();
 			long output = lEndTime - lStartTime;
 			dos.writeUTF("Transfer complete\nElapsed time: " + (output/1000.0)+"seconds or "+ (output/(1000.0*60))+"minutes");
@@ -394,7 +404,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
               System.out.println("In put & loop");
               dos.writeUTF(Long.toString(this.getCommandId()));    																                                  // Invoking the start() method
               boolean dummy = mapMethods(this.getCommandId(), false, "set");
-							this.receiveFile(dos, dis, command.substring(4), true, this.getCommandId());
+							this.receiveFile(dos, dis, command.split(" ")[1], true, this.getCommandId());
   					}else{
 							this.receiveFile(dos, dis, command.substring(4), false, this.getCommandId());
 						}
