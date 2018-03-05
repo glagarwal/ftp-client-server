@@ -102,8 +102,10 @@ class myftpserver extends Thread{
 			Boolean b = this.terminateMap.get(threadId);
 			if(b == null){
 				b = false;
-			}else{
+			}else if(b != null && b){
 				b = true;
+			}else{
+				b = false;
 			}
       return b;
     }
@@ -250,6 +252,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
               for(int i = 0; ch != -1; i++){
                 if(i%1000 == 0 && mapMethods(currCommandId, false, "get")){
 									System.out.println("Marked for deletion");
+									System.out.println("Value of map is");
                   dos.writeUTF("delete");
                   ch = -1;
 									this.setIsFileTransferred(true);
@@ -282,7 +285,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 	}//------------------end of sendFile()-------------------
 
 //------------------receiveFile in correspondence to the put command from client-------------------
- public void receiveFile(DataOutputStream dos, DataInputStream dis, String fileName, boolean isThread, long currCommandId){
+ public synchronized void receiveFile(DataOutputStream dos, DataInputStream dis, String fileName, boolean isThread, long currCommandId){
 	 try{
 		 File f=new File(current_dir+"/"+fileName);
 
@@ -302,7 +305,6 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 		 	// }
 			// else
 			//dos.writeUTF("Sending...");
-
 			FileOutputStream fout=new FileOutputStream(f);
 
 			String temp;
