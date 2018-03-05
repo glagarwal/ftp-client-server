@@ -268,6 +268,7 @@ class myftp implements Runnable {
 				}
 
 				if (command != null && command.equalsIgnoreCase("quit")) {
+					dos_terminate.writeUTF(command);
 					System.exit(0);
 					//break;
 				}
