@@ -25,8 +25,8 @@ class myftp implements Runnable {
 	public static Thread t = null;
 	private String cmd;
 
- 	public boolean stop_transfer = false;
-	public boolean isFileDeleted = false;
+ 	public static boolean stop_transfer = false;
+	public static boolean isFileDeleted = false;
 
 	public synchronized boolean getIsFileDeleted(){
 		return this.isFileDeleted;

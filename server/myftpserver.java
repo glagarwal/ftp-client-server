@@ -2,7 +2,7 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 
-class myftpserver extends Thread{
+class clientInstance extends Thread{
 	public final String root_dir = System.getProperty("user.dir");
 	public String current_dir = root_dir;
 
@@ -76,7 +76,7 @@ class myftpserver extends Thread{
 	}
 
 	//----------------------Constructor to instantiate myftpserver nport thread ------------------------------
-	myftpserver(Socket portSocket, boolean isThreadContextNport){
+	clientInstance(Socket portSocket, boolean isThreadContextNport){
 		try{
 			if(isThreadContextNport){
 				System.out.println("In nport constructor");
@@ -456,7 +456,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 /**
 This class handles multiple client connections and spawns off new thread for each client
 */
-class ClientManager extends Thread{
+class myftpserver extends Thread{
 
 	public ServerSocket nportServer;
 	public ServerSocket tportServer;
@@ -465,7 +465,7 @@ class ClientManager extends Thread{
   public static final String NPORT_CONTEXT = "nport_context";
   public static final String UNEXPECTED_ERROR = "Unexpected error occured";
 
-	public ClientManager(int nportNumber, int tportNumber) {
+	public myftpserver(int nportNumber, int tportNumber) {
 		this.nportNumber = nportNumber;
 		this.tportNumber = tportNumber;
 	}
@@ -488,8 +488,8 @@ class ClientManager extends Thread{
   			}
         System.out.println("Server connected nport"+nportClientSocket);
 				System.out.println("Server connected tport"+tportClientSocket);
-  			myftpserver mainThread = new myftpserver(nportClientSocket, true);
-				myftpserver tportThread = new myftpserver(tportClientSocket, false);
+  			clientInstance mainThread = new clientInstance(nportClientSocket, true);
+				clientInstance tportThread = new clientInstance(tportClientSocket, false);
         mainThread.start();
 				tportThread.start();
   		}
@@ -502,7 +502,7 @@ class ClientManager extends Thread{
 		try{
 			// This method is modified so that when this class is invoked, it will spawn off
 		  // two threads listening on nport and tport simultaeously.
-			ClientManager clientManager = new ClientManager(Integer.valueOf(args[0]), Integer.valueOf(args[1]));
+			myftpserver clientManager = new myftpserver(Integer.valueOf(args[0]), Integer.valueOf(args[1]));
 			clientManager.start();
 		} catch(Exception e){
 			System.out.println(UNEXPECTED_ERROR+": "+e);
