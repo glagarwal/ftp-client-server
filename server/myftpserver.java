@@ -64,10 +64,13 @@ class clientInstance extends Thread{
   public String fileNamePut = "";
   public String currentDirPut = "";
 
-  public static Map<Long, Boolean> terminateMap= new HashMap<Long, Boolean>();
-	public static long commandId=0;
+  public static Map<Integer, Boolean> terminateMap= new HashMap<Integer, Boolean>();
+	public static Integer commandId=0;
 	public boolean isFileTransferred;
 
+	public synchronized void incrementCommandId(){
+		this.commandId++;
+	}
 	public synchronized boolean getIsFileTransferred(){
 		return this.isFileTransferred;
 	}
@@ -92,31 +95,38 @@ class clientInstance extends Thread{
 		}
 	}//------------------end of Constructor---------------------
   //-------------method to change terminateMap values-----------------
-  public synchronized boolean mapMethods(long threadId, boolean isTerminate, String operation){
+  public static synchronized boolean mapMethods(Integer threadId, boolean isTerminate, String operation){
+
     if(operation.equalsIgnoreCase("set")){
-      terminateMap.put(this.commandId, isTerminate);
-			this.commandId++;
+			Boolean x = isTerminate;
+      terminateMap.put(threadId, x);
       return true;
     }
     else if(operation.equalsIgnoreCase("get")){
-			Boolean b = this.terminateMap.get(threadId);
+			Boolean b = terminateMap.get(threadId);
 			if(b == null){
 				b = false;
 			}else if(b != null && b){
+				System.out.println("value is "+b);
 				b = true;
 			}else{
 				b = false;
 			}
       return b;
     }
-    else if(operation.equalsIgnoreCase("remove")){
-      terminateMap.remove(threadId);
-      return true;
+    else if(operation.equalsIgnoreCase("ifThere")){
+      Boolean b = terminateMap.get(threadId);
+			if(b == null){
+				b = false;
+			}else{
+				b = true;
+			}
+			return b;
     }
     return false;
   }
 	//Method to return command Id
-	public synchronized long getCommandId(){
+	public synchronized Integer getCommandId(){
 		return this.commandId;
 	}
 	//------------------printWorkingDirectory in correspondence to the pwd command from client-------------------
@@ -224,7 +234,7 @@ class clientInstance extends Thread{
 	}//------------------end of deleteFile()-------------------
 
 //------------------sendFile in correspondence to the get command from client-------------------
-public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName, boolean isThread, long currCommandId){
+public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName, boolean isThread, Integer currCommandId){
 		try{
         File f=new File(current_dir+"/"+fileName);
 				System.out.println("dir is---"+current_dir+" filename is "+fileName);
@@ -252,7 +262,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
               for(int i = 0; ch != -1; i++){
                 if(i%1000 == 0 && mapMethods(currCommandId, false, "get")){
 									System.out.println("Marked for deletion");
-									System.out.println("Value of map is");
+									//System.out.println("Value of map is");
                   dos.writeUTF("delete");
                   ch = -1;
 									this.setIsFileTransferred(true);
@@ -285,10 +295,9 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 	}//------------------end of sendFile()-------------------
 
 //------------------receiveFile in correspondence to the put command from client-------------------
- public synchronized void receiveFile(DataOutputStream dos, DataInputStream dis, String fileName, boolean isThread, long currCommandId){
+ public synchronized void receiveFile(DataOutputStream dos, DataInputStream dis, String fileName, boolean isThread, Integer currCommandId){
 	 try{
 		 File f=new File(current_dir+"/"+fileName);
-
 		 // if(dis.readUTF().compareTo("operation Aborted")==0){
 			//  // dos.writeUTF("operation Aborted");
 			//  return;
@@ -315,6 +324,7 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
 					temp=dis.readUTF();
 					if(temp.equals("delete")){		//(i%1000 == 0 && mapMethods(currCommandId, false, "get")) ||
 						// dos.writeUTF("delete");
+						System.out.println("Marked for deletion put");
 						ch = -1;
 						this.setIsFileTransferred(true);
 						fout.close();
@@ -388,10 +398,11 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
   				else if(command != null && command.contains(GET_COMMAND) && command.substring(0,4).equalsIgnoreCase(GET_COMMAND)){
   					if(command.charAt(command.length()-1) == '&'){
               System.out.println("In get & loop");
-              dos.writeUTF(Long.toString(this.getCommandId()));    																                                  // Invoking the start() method
+              dos.writeUTF(Integer.toString(this.getCommandId()));    																                                  // Invoking the start() method
               boolean dummy = mapMethods(this.getCommandId(), false, "set");
+							incrementCommandId();
 							this.setIsFileTransferred(false);
-							this.sendFile(dos, dis, command.split(" ")[1], true, this.getCommandId());
+							this.sendFile(dos, dis, command.split(" ")[1], true, (this.getCommandId()-1));
 							do{
 
 							}
@@ -406,7 +417,8 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
               System.out.println("In put & loop");
               dos.writeUTF(Long.toString(this.getCommandId()));    																                                  // Invoking the start() method
               boolean dummy = mapMethods(this.getCommandId(), false, "set");
-							this.receiveFile(dos, dis, command.split(" ")[1], true, this.getCommandId());
+							incrementCommandId();
+							this.receiveFile(dos, dis, command.split(" ")[1], true, (this.getCommandId()-1));
   					}else{
 							this.receiveFile(dos, dis, command.substring(4), false, this.getCommandId());
 						}
@@ -415,10 +427,12 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
   					dos.writeUTF(QUIT_MESSAGE);
   					//break;
   					System.out.println(WAITING_MSG);
+						this.nportSocket = null;
+						message = "exit";
   					//this.nportSocket = this.server.accept();
-  					System.out.println("Connected "+nportSocket);
-  					dos=new DataOutputStream(this.nportSocket.getOutputStream());		//send message to the Client
-  					dis=new DataInputStream(this.nportSocket.getInputStream());			//get input from the client
+  					//System.out.println("Connected "+nportSocket);
+  					//dos=new DataOutputStream(this.nportSocket.getOutputStream());		//send message to the Client
+  					//dis=new DataInputStream(this.nportSocket.getInputStream());			//get input from the client
   				}
   				else{
   					dos.writeUTF(INVALID_CMD_MESSAGE);
@@ -438,10 +452,16 @@ public void sendFile(DataOutputStream dos, DataInputStream dis, String fileName,
   				System.out.println("tport Command called: " +command);
           if(command.contains(TERMINATE_COMMAND)){
             //Terminate here
-						System.out.println("terminate if loop");
-            boolean dummy = mapMethods(Long.parseLong(command.split(" ")[1]), true, "set");
-						dos.writeUTF("Command Terminated");
-          }
+						System.out.println("terminate if loop"+command.split(" ")[1]);
+						if(mapMethods(Integer.parseInt(command.split(" ")[1]), true, "ifThere")){
+							boolean dummy = mapMethods(Integer.parseInt(command.split(" ")[1]), true, "set");
+							dos.writeUTF("Command Terminated");
+						}else{
+							dos.writeUTF("Wrong Command ID");
+						}
+          }else if(command.contains(QUIT_COMMAND)){
+						message = "exit";
+					}
         }
       }
 			System.out.println("Server stopped running");

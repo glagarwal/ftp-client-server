@@ -246,15 +246,21 @@ class myftp implements Runnable {
 					}
 					client.stopFileTransfer(true);
 					dos_terminate.writeUTF(command);
-					command = null;
-					System.out.print("Okay, please wait! Terminating...");
-					do{
+					String ret = dis_terminate.readUTF();
+					if(ret.equalsIgnoreCase("Wrong Command ID")){
+						System.out.print("Oops.. wrong command id");
+						client.stopFileTransfer(false);
+					}else{
+						command = null;
+						System.out.print("Okay, please wait! Terminating...");
+						do{
 
-					}while(!client.getIsFileDeleted());
-					System.out.println("Terminated!");
-					client.setIsFileDeleted(false);
-					client.stopFileTransfer(false);
-					t = null;
+						}while(!client.getIsFileDeleted());
+						System.out.println("Terminated!");
+						client.setIsFileDeleted(false);
+						client.stopFileTransfer(false);
+						t = null;
+					}
 					//t.interrupt();
 				}else if (t==null){
 					if(DEBUG)	System.out.println("Sending to server");
@@ -268,6 +274,7 @@ class myftp implements Runnable {
 				}
 
 				if (command != null && command.equalsIgnoreCase("quit")) {
+					dos_terminate.writeUTF(command);
 					System.exit(0);
 					//break;
 				}
