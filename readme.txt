@@ -30,7 +30,8 @@
 		{Note: we have made a provision for the "cd" command to not go beyond the root directory where the program resides.
 			To quit the server, press "ctrl+c" on the terminal where the server is running.
 
-			After a get / put command with "&", you'll be able to only run "terminate <COMMAND ID>" command. Other commands will not be accepted till the get/put thread is either terminated or completes execution by itself.}
+			After a get / put command with "&", you'll be able to only run "terminate <COMMAND ID>" command. Other commands will not be accepted till the get/put thread is either terminated or completes execution by itself.
+			We have handled concurrency - mutual exclusion for simultaneous put commands from multiple clients.}
 
 
 (c) This project was done in its entirety by Gaurav Agarwal & Ankit Vaghela. We hereby state that we have not received unauthorized help of any form.
